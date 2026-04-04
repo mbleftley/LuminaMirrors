@@ -2,7 +2,7 @@
 ### PREMIUM OPTICAL PUZZLE EXPERIENCE
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-00f2ff.svg)](https://opensource.org/licenses/MIT)
-[![Live Demo](https://img.shields.io/badge/Live_Deployment-Access_Interface-00f2ff.svg)](https://mbleftley.github.io/Lumina/)
+[![Live Demo](https://img.shields.io/badge/Live_Deployment-Access_Interface-00f2ff.svg)](https://mbleftley.github.io/LuminaMirrors/)
 [![Game Status](https://img.shields.io/badge/Game_Status-Operational-00f2ff.svg)](#)
 
 **LUMINA** is a high-fidelity, tactical optics simulator that challenges your spatial reasoning as you guide a high-energy plasma bridge through a network of volatile mirrors.
@@ -64,4 +64,4 @@ open index.html
 
 ## 🎖️ MISSION CREDITS
 **SYSTEM ARCHITECT:** [MBLXPERIMENT](https://x.com/MBLExperiment)  
-**TACTICAL ASSISTANT:** Developed with the support of [Google Anti-Gravity](https://deepmind.google/technologies/anti-gravity/).
+**TACTICAL ASSISTANT:** Developed with the support of [Google Anti-Gravity](https://antigravity.google/).
