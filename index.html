@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LUMINA | Visual Resonance v3.2</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700&family=JetBrains+Mono:wght@100;400&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        :root {
+            --bg: #030303;
+            --text: #ffffff;
+            --accent: #00f2ff;
+            --gold: #ffcf33;
+            --danger: #ff3e3e;
+            --font-main: 'Outfit', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; user-select: none; }
+        body { background: var(--bg); color: var(--text); font-family: var(--font-main); overflow: hidden; height: 100dvh; }
+
+        #game-container { width: 100%; height: 100%; position: relative; overflow: hidden; }
+
+        /* HUD */
+        .hud { position: absolute; top: 0; left: 0; width: 100%; padding: 25px; display: flex; justify-content: space-between; pointer-events: none; z-index: 100; opacity: 0; transition: 0.5s; }
+        .hud-panel { background: rgba(255, 255, 255, 0.02); border-top: 1px solid rgba(255,255,255,0.1); padding: 5px 20px; font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 4px; text-transform: uppercase; backdrop-filter: blur(15px); }
+        .val { font-size: 1.5rem; color: var(--gold); font-weight: 700; display: block; font-family: var(--font-main); margin-top: 4px; }
+        
+        #sync-container { position: absolute; top: 25px; left: 50%; transform: translateX(-50%); width: 320px; text-align: center; }
+        #sync-bar-outer { width: 100%; height: 8px; background: rgba(255,255,255,0.03); margin-top: 15px; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; }
+        #sync-bar-inner { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #fff); box-shadow: 0 0 25px var(--accent); transition: 0.1s linear; }
+
+        /* OVERLAYS */
+        .vibe-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.2) 50%), linear-gradient(90deg, rgba(255,0,0,0.01), rgba(0,255,0,0.01), rgba(0,0,255,0.01)); background-size: 100% 4px, 3px 100%; opacity: 0.1; }
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(3, 3, 3, 0.96); display: flex; justify-content: center; align-items: center; flex-direction: column; z-index: 1000; backdrop-filter: blur(35px); text-align: center; }
+        .title { font-size: 5rem; font-weight: 700; letter-spacing: 25px; color: var(--accent); text-shadow: 0 0 35px var(--accent); margin-bottom: 5px; }
+        .stat { font-family: var(--font-mono); font-size: 0.75rem; opacity: 0.6; margin-bottom: 45px; letter-spacing: 4px; line-height: 2.8; }
+        .btn { background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 24px 70px; cursor: pointer; font-family: var(--font-mono); font-size: 0.9rem; letter-spacing: 6px; transition: 0.4s; border-radius: 4px; }
+        .btn:hover { background: var(--accent); color: #000; box-shadow: 0 0 45px var(--accent); }
+        
+        #start-menu .title { color: var(--gold); text-shadow: 0 0 50px var(--gold); }
+        #start-menu.active { display: flex; }
+        #level-complete, #game-over, #start-menu { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="vibe-overlay" id="glitch-overlay" style="display: none; background: #ff3e3e44; z-index: 2000;"></div>
+    <div class="vibe-overlay"></div>
+
+    <div class="hud" id="main-hud">
+        <div class="hud-panel">SIGNAL_L03<br><span class="val" id="level-num">1</span></div>
+        <div id="sync-container">
+            <div class="hud-panel">BRIDGE_SATURATION</div>
+            <div id="sync-bar-outer"><div id="sync-bar-inner"></div></div>
+        </div>
+        <div class="hud-panel" style="text-align: right;">DECAY_TIMER<br><span class="val" id="timer-val">30.00s</span></div>
+    </div>
+
+    <div id="start-menu" class="overlay active">
+        <div class="title">LUMINA</div>
+        <div class="stat">TACTICAL OPTICS | RESONANCE v3.2<br>GUIDE THE PLASMA FLOW | FILL THE CORE TO SYNC</div>
+        <button class="btn" onclick="startGame()">INITIATE LINK</button>
+    </div>
+
+    <div id="level-complete" class="overlay">
+        <div class="title">DECODED</div>
+        <div class="stat">SIGNAL_INTEGRITY: 100%<br>NEURAL_BRIDGE: SECURED</div>
+        <button class="btn" onclick="nextLevel()">NEXT SIGNAL</button>
+    </div>
+
+    <div id="game-over" class="overlay">
+        <div class="title" style="color: var(--danger); text-shadow: 0 0 30px var(--danger);">DISRUPTED</div>
+        <div class="stat" id="fail-reason">SINGULARITY COLLAPSE DETECTED<br>SIGNAL_INTEGRITY: 0%</div>
+        <button class="btn" onclick="location.reload()">RE-INITIATE</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const levelNumDisplay = document.getElementById('level-num');
+        const timerDisplay = document.getElementById('timer-val');
+        const syncBarInner = document.getElementById('sync-bar-inner');
+        
+        let level = 1, timeLeft = 30, syncProgress = 0, frame = 0;
+        let gameState = 'MENU';
+        let width, height;
+        let source, core, mirrors = [], obstacles = [], particles = [];
+        let isDragging = null, beamSegments = [], isCoreHit = false;
+
+        // --- AUDIO ---
+        let fmSynth, drone, reverb;
+        function initAudio() {
+            reverb = new Tone.Reverb(2).toDestination();
+            fmSynth = new Tone.PolySynth(Tone.FMSynth, {
+                harmonicity: 3.5, envelope: { attack: 0.005, decay: 0.2, sustain: 0, release: 0.4 }
+            }).connect(reverb);
+            drone = new Tone.Oscillator(50, "sine").toDestination();
+            drone.volume.value = -55; drone.start();
+        }
+
+        let lastPingTime = 0;
+        function playPing(freq = "C5", vol = -15) { 
+            const now = Tone.now();
+            if (fmSynth && now > lastPingTime + 0.1) {
+                try { fmSynth.triggerAttackRelease(freq, "32n", now + 0.05); lastPingTime = now; } catch(e) {}
+            }
+        }
+        function playSweep(rising = true) {
+            if (fmSynth) {
+                const now = Tone.now();
+                fmSynth.triggerAttackRelease(rising ? "C4" : "C2", "2n", now);
+                fmSynth.triggerAttackRelease(rising ? "G4" : "G1", "2n", now + 0.2);
+            }
+        }
+
+        // --- PARTICLE SHARDS ---
+        class Shard {
+            constructor(x, y, vx, vy, color, lifeDecay = 0.03) {
+                this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+                this.color = color; this.life = 1.0; this.decay = lifeDecay;
+                this.size = Math.random() * 6 + 2;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.life -= this.decay; }
+            draw() {
+                const speed = Math.hypot(this.vx, this.vy);
+                const angle = Math.atan2(this.vy, this.vx);
+                ctx.save(); ctx.globalAlpha = this.life; ctx.strokeStyle = this.color; ctx.lineWidth = 2;
+                ctx.beginPath(); 
+                ctx.moveTo(this.x, this.y); 
+                ctx.lineTo(this.x - Math.cos(angle)*speed*2, this.y - Math.sin(angle)*speed*2); 
+                ctx.stroke(); ctx.restore();
+            }
+        }
+        function createShards(x, y, count, color, spread=8, decay=0.03) {
+            for (let i = 0; i < count; i++) {
+                const vx = (Math.random()-0.5)*spread; const vy = (Math.random()-0.5)*spread;
+                particles.push(new Shard(x, y, vx, vy, color, decay));
+            }
+        }
+
+        // --- GAME CORE ---
+        function init() { resize(); createLevel(); requestAnimationFrame(loop); }
+        function resize() { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; }
+
+        function startGame() {
+            Tone.start(); Tone.context.resume(); initAudio(); gameState = 'PLAYING';
+            document.getElementById('start-menu').style.display = 'none';
+            document.getElementById('main-hud').style.opacity = '1';
+        }
+
+        function createLevel() {
+            gameState = (gameState === 'MENU') ? 'MENU' : 'PLAYING';
+            timeLeft = 30; syncProgress = 0; isCoreHit = false;
+            document.getElementById('level-complete').style.display = 'none';
+            document.getElementById('game-over').style.display = 'none';
+            levelNumDisplay.textContent = level;
+            particles = []; beamSegments = [];
+            
+            source = { x: 80, y: height / 2 };
+            let coreY = 100 + Math.random() * (height - 200);
+            while (Math.abs(coreY - source.y) < 150) coreY = 100 + Math.random() * (height - 200);
+            core = { x: width - 150, y: coreY, radius: 70 };
+
+            mirrors = [];
+            const mCount = 4 + Math.floor(level / 2);
+            for (let i = 0; i < mCount; i++) {
+                mirrors.push({
+                    x: 200 + Math.random() * (width - 400),
+                    y: 100 + Math.random() * (height - 200),
+                    angle: (Math.floor(Math.random() * 8) * 45) * (Math.PI / 180),
+                    length: 100, id: i
+                });
+            }
+
+            obstacles = [];
+            const oCount = Math.floor(level / 2) + 1;
+            for (let i = 0; i < oCount; i++) {
+                const type = Math.random() < 0.4 ? 'BOMB' : 'VOID';
+                let oy = 100 + Math.random() * (height-200);
+                if (type === 'BOMB') while (Math.abs(oy - source.y) < 70) oy = 100 + Math.random() * (height-200);
+                obstacles.push({ x: 300 + Math.random() * (width-600), y: oy, radius: type === 'BOMB' ? 40 : 70, type });
+            }
+        }
+
+        function loop() {
+            frame++;
+            if (gameState === 'PLAYING') {
+                updateOptics();
+                updateTimer();
+                if (isCoreHit) {
+                    syncProgress += 0.007; if (syncProgress >= 1) triggerWin();
+                } else {
+                    syncProgress = Math.max(0, syncProgress - 0.003);
+                }
+            }
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function updateTimer() {
+            timeLeft -= 1/60; timerDisplay.textContent = Math.max(0, timeLeft).toFixed(2) + "s";
+            if (timeLeft <= 0) triggerGameOver("THERMAL DECAY COMPLETE");
+        }
+
+        function updateOptics() {
+            beamSegments = [{ x: source.x, y: source.y }];
+            isCoreHit = false;
+            let curX = source.x; let curY = source.y;
+            let curAngle = 0; let limit = 12;
+
+            while (limit--) {
+                let closestHit = null, minDist = 4000;
+                const rayX = Math.cos(curAngle); const rayY = Math.sin(curAngle);
+
+                mirrors.forEach(m => {
+                    const hit = getLineIntersection(curX, curY, curX + rayX * 3000, curY + rayY * 3000,
+                        m.x - Math.cos(m.angle) * m.length/2, m.y - Math.sin(m.angle) * m.length/2,
+                        m.x + Math.cos(m.angle) * m.length/2, m.y + Math.sin(m.angle) * m.length/2);
+                    if (hit) {
+                        const dist = Math.hypot(hit.x-curX, hit.y-curY);
+                        if (dist > 5 && dist < minDist) { minDist = dist; closestHit = { ...hit, mirror: m, type: 'MIRROR' }; }
+                    }
+                });
+
+                obstacles.forEach(o => {
+                    const hit = getCircleIntersection(curX, curY, rayX, rayY, o.x, o.y, o.radius);
+                    if (hit && hit.dist < minDist) { minDist = hit.dist; closestHit = { ...hit, obs: o, type: 'OBSTACLE' }; }
+                });
+
+                const coreHit = getCircleIntersection(curX, curY, rayX, rayY, core.x, core.y, core.radius);
+                if (coreHit && coreHit.dist < minDist) {
+                    beamSegments.push({ x: coreHit.x, y: coreHit.y });
+                    isCoreHit = true;
+                    if (frame % 3 === 0) createShards(coreHit.x, coreHit.y, 1, '#00f2ff', 12);
+                    break;
+                }
+
+                if (closestHit) {
+                    beamSegments.push({ x: closestHit.x, y: closestHit.y });
+                    if (closestHit.type === 'MIRROR') {
+                        curX = closestHit.x; curY = closestHit.y;
+                        curAngle = 2 * closestHit.mirror.angle - curAngle;
+                        if (frame % 8 === 0) createShards(curX, curY, 1, '#ffffff', 5);
+                    } else if (closestHit.type === 'OBSTACLE') {
+                        if (closestHit.obs.type === 'BOMB') triggerGameOver("CRITICAL BOMB BREACH");
+                        break;
+                    }
+                } else {
+                    beamSegments.push({ x: curX+rayX*2500, y: curY+rayY*2500 });
+                    break;
+                }
+            }
+        }
+
+        function draw() {
+            ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#030303'; ctx.fillRect(0, 0, width, height);
+
+            obstacles.forEach(o => {
+                ctx.save(); ctx.shadowBlur = o.type === 'BOMB' ? (20 + Math.sin(frame/10)*10) : 0; ctx.shadowColor = '#ff3e3e';
+                ctx.strokeStyle = o.type === 'BOMB' ? '#ff3e3e99' : '#222'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.arc(o.x, o.y, o.radius, 0, Math.PI * 2); ctx.stroke();
+                ctx.restore();
+            });
+
+            // CORE SATURATION
+            ctx.save(); ctx.shadowBlur = 20 + syncProgress*20; ctx.shadowColor = '#00f2ff';
+            ctx.strokeStyle = isCoreHit ? '#00f2ff' : '#00f2ff44'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.arc(core.x, core.y, core.radius, 0, Math.PI * 2); ctx.stroke();
+
+            // LIQUID FILL
+            ctx.save(); ctx.beginPath(); ctx.arc(core.x, core.y, core.radius*0.85, 0, Math.PI * 2); ctx.clip();
+            ctx.fillStyle = '#00f2ff22'; 
+            const fillH = core.radius * 2 * syncProgress;
+            ctx.fillRect(core.x - core.radius, core.y + core.radius - fillH, core.radius*2, fillH);
+            ctx.restore();
+            
+            // Resonance Ring
+            ctx.setLineDash([10, 15]); ctx.lineDashOffset = -frame * (1 + syncProgress*3);
+            ctx.beginPath(); ctx.arc(core.x, core.y, core.radius * 0.7, 0, Math.PI * 2); ctx.stroke();
+            ctx.restore();
+
+            // PLASMA BRIDGE
+            if (gameState !== 'FAIL_SCREEN' && beamSegments.length > 1) {
+                ctx.save(); ctx.shadowBlur = 25; ctx.shadowColor = '#00f2ff';
+                ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 4 + Math.sin(frame/5);
+                ctx.setLineDash([35, 20]); ctx.lineDashOffset = -frame * 6;
+                ctx.beginPath(); ctx.moveTo(beamSegments[0].x, beamSegments[0].y);
+                for (let i = 1; i < beamSegments.length; i++) ctx.lineTo(beamSegments[i].x, beamSegments[i].y);
+                ctx.stroke(); ctx.restore();
+            }
+
+            mirrors.forEach(m => {
+                ctx.save(); ctx.shadowBlur = 12; ctx.shadowColor = '#fff'; ctx.strokeStyle = '#ffcf33'; ctx.lineWidth = 7;
+                const mx = Math.cos(m.angle)*m.length/2; const my = Math.sin(m.angle)*m.length/2;
+                ctx.beginPath(); ctx.moveTo(m.x - mx, m.y - my); ctx.lineTo(m.x + mx, m.y + my); ctx.stroke(); ctx.restore();
+            });
+
+            // Source
+            ctx.save(); ctx.shadowBlur = 25; ctx.shadowColor = '#00f2ff'; ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.rect(source.x - 14, source.y - 14, 28, 28); ctx.fill(); 
+            ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 4; ctx.stroke(); ctx.restore();
+
+            // Particles update & draw
+            particles.forEach((p, i) => { p.update(); p.draw(); if (p.life <= 0) particles.splice(i, 1); });
+
+            // HUD
+            syncBarInner.style.width = (syncProgress * 100) + "%";
+        }
+
+        function triggerWin() {
+            if (gameState !== 'PLAYING') return;
+            gameState = 'WINNING'; playSweep(true);
+            createShards(core.x, core.y, 100, '#00f2ff', 25, 0.02);
+            setTimeout(() => {
+                document.getElementById('level-complete').style.display = 'flex';
+                gameState = 'WIN_SCREEN';
+                anime({ targets: '#level-complete', opacity: [0, 1], scale: [0.95, 1], duration: 800 });
+            }, 1200);
+        }
+
+        function triggerGameOver(reason) {
+            if (gameState !== 'PLAYING') return;
+            gameState = 'FAILING'; playSweep(false);
+            const impact = beamSegments[beamSegments.length-1];
+            createShards(impact.x, impact.y, 80, '#ff3e3e', 30, 0.015); // Bomb Shards
+            document.getElementById('glitch-overlay').style.display = 'block';
+            anime({ targets: '#game-container', translateX: [-20, 20, 0], duration: 250, loop: 4 });
+            setTimeout(() => {
+                document.getElementById('glitch-overlay').style.display = 'none';
+                document.getElementById('fail-reason').textContent = reason;
+                document.getElementById('game-over').style.display = 'flex';
+                gameState = 'FAIL_SCREEN';
+            }, 1000);
+        }
+
+        // MATH
+        function getLineIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
+            const den = (y4 - y3)*(x2 - x1) - (x4 - x3)*(y2 - y1);
+            if (den === 0) return null;
+            const ua = ((x4 - x3)*(y1 - y3) - (y4 - y3)*(x1 - x3))/den;
+            const ub = ((x2 - x1)*(y1 - y3) - (y2 - y1)*(x1 - x3))/den;
+            if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) return { x: x1 + ua*(x2 - x1), y: y1 + ua*(y2 - y1) };
+            return null;
+        }
+        function getCircleIntersection(ox, oy, dx, dy, cx, cy, r) {
+            const vx = ox - cx; const vy = oy - cy;
+            const b = 2 * (dx * vx + dy * vy);
+            const c = vx * vx + vy * vy - r * r;
+            const disc = b * b - 4 * c;
+            if (disc < 0) return null;
+            const t = (-b - Math.sqrt(disc)) / 2;
+            if (t > 0) return { x: ox + dx * t, y: oy + dy * t, dist: t };
+            return null;
+        }
+
+        function onPointerStart(e) {
+            if (gameState !== 'PLAYING') return;
+            const x = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+            const y = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+            isDragging = mirrors.find(m => Math.hypot(m.x - x, m.y - y) < 60);
+            if (isDragging) isDragging.isMoved = false;
+        }
+        function onPointerMove(e) {
+            if (!isDragging || gameState !== 'PLAYING') return;
+            const x = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+            const y = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+            isDragging.x = x; isDragging.y = y; isDragging.isMoved = true;
+        }
+        function onPointerEnd(e) {
+            if (isDragging && !isDragging.isMoved) { isDragging.angle += 45 * Math.PI / 180; playPing("D6", -15); }
+            isDragging = null;
+        }
+
+        window.nextLevel = () => { level++; createLevel(); }
+        window.addEventListener('mousedown', onPointerStart); window.addEventListener('mousemove', onPointerMove); window.addEventListener('mouseup', onPointerEnd);
+        window.addEventListener('touchstart', onPointerStart); window.addEventListener('touchmove', onPointerMove); window.addEventListener('touchend', onPointerEnd);
+        window.addEventListener('resize', resize);
+        init();
+    </script>
+</body>
+</html>
