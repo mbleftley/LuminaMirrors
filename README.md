@@ -59,7 +59,7 @@ cd LuminaMirrors
 
 # Play the game
 open index.html
-
+```
 ---
 
 ## 🎖️ MISSION CREDITS
