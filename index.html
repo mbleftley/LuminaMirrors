@@ -615,9 +615,9 @@
                 this.isDragging = null;
                 this.totalScoreDisplay = document.getElementById('total-score-val');
                 
-                // Audio
+                // Audio Sensors (v9.7 Restored)
                 this.fmSynth = null; this.drone = null; this.reverb = null; 
-                this.syncFilter = null; this.waterChorus = null;
+                this.pulseSynth = null; this.syncFilter = null; this.waterChorus = null;
                 this.thrumSynth = null; this.clickSynth = null;
                 this.lastPingTime = 0;
                 this.lastPulseTime = 0;
@@ -635,7 +635,9 @@
             }
 
             initAudio() {
-                if (this.fmSynth) return;
+                if (this.reverb) return;
+
+                // Reverb & FM Foundations (v9.7 Restored)
                 this.reverb = new Tone.Reverb({ decay: 2.5, wet: 0.4 }).toDestination();
                 this.fmSynth = new Tone.PolySynth(Tone.FMSynth, {
                     harmonicity: 3.5, envelope: { attack: 0.005, decay: 0.2, sustain: 0, release: 0.4 }
@@ -644,23 +646,24 @@
                 this.drone = new Tone.Oscillator(40, "sine").toDestination();
                 this.drone.volume.value = -55; this.drone.start();
 
-                // MAGNETIC PULSE ENGINE (v7.9 Rhythmic Buildup)
-                this.syncFilter = new Tone.Filter({
-                    frequency: 400, type: "lowpass", rollover: -12
-                }).toDestination();
-                // We re-use thrumSynth for the pulses to maintain consistency
+                // MAGNETIC PULSE ENGINE (v10.6 Goldilocks Calibration)
+                this.pulseSynth = new Tone.MetalSynth({
+                    frequency: 200, envelope: { attack: 0.001, decay: 0.1, release: 0.1 },
+                    harmonicity: 5.1, modulationIndex: 32, resonance: 1000, octaves: 1.5
+                }).connect(this.reverb);
+                this.pulseSynth.volume.value = -14; // GOLDILOCKS (v10.6)
 
                 // TACTILE FEEDBACK SYNTHS (v7.7 Hardware Weight)
                 this.thrumSynth = new Tone.MetalSynth({
                     frequency: 200, envelope: { attack: 0.001, decay: 0.1, release: 0.1 },
                     harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5
                 }).connect(this.reverb);
-                this.thrumSynth.volume.value = -18;
+                this.thrumSynth.volume.value = -14; // GOLDILOCKS (v10.6)
 
                 this.clickSynth = new Tone.NoiseSynth({
                     noise: { type: "white" }, envelope: { attack: 0.001, decay: 0.06, release: 0.06 }
                 }).connect(this.reverb);
-                this.clickSynth.volume.value = -8;
+                this.clickSynth.volume.value = -16; // BALANCED (v10.6)
             }
 
             playPing(freq = "C5") {
@@ -728,16 +731,33 @@
                 this.particles = []; this.mirrors = []; this.obstacles = []; this.emitters = []; this.cores = [];
 
                 const SAFE_ZONE_Y = this.height - 180;
-                const emitterCount = this.level >= 8 ? 3 : (this.level >= 5 ? 2 : 1);
+                // Faster Difficulty Scaling (v9.1)
+                const emitterCount = this.level >= 8 ? 3 : (this.level >= 3 ? 2 : 1);
                 const spacing = SAFE_ZONE_Y / (emitterCount + 1);
 
                 for (let i = 0; i < emitterCount; i++) {
                     const color = HARMONIC_PALETTE[i % HARMONIC_PALETTE.length];
-                    const ey = 80 + (spacing * (i + 1));
+                    const ey = 80 + (spacing * (i + 1)) + (Math.random() - 0.5) * 50;
                     this.emitters.push(new Emitter(80, ey, color));
-                    
-                    const cy = 100 + Math.random() * (SAFE_ZONE_Y - 200);
-                    this.cores.push(new Core(this.width - 150, cy, 65 - (emitterCount * 5), color));
+
+                    // SPATIAL HARMONY RECALIBRATION (v9.3 No-Overlap)
+                    let cx, cy, tooClose;
+                    let attempts = 0;
+                    do {
+                        tooClose = false;
+                        cx = this.width - 150 - Math.random() * (this.width / 3);
+                        cy = 100 + Math.random() * (SAFE_ZONE_Y - 200);
+                        
+                        for (let other of this.cores) {
+                            if (Math.hypot(cx - other.x, cy - other.y) < 140) {
+                                tooClose = true;
+                                break;
+                            }
+                        }
+                        attempts++;
+                    } while (tooClose && attempts < 50);
+
+                    this.cores.push(new Core(cx, cy, 65 - (emitterCount * 5), color));
 
                     // STRATEGIC BLOCKER: Place a VOID directly in the line of fire
                     const bx = (80 + (this.width - 150)) / 2 + (Math.random() - 0.5) * 50;
@@ -763,7 +783,8 @@
 
                 const oCount = Math.floor(this.level / 2);
                 for (let i = 0; i < oCount; i++) {
-                    const type = Math.random() < 0.4 ? 'BOMB' : 'VOID';
+                    // Guaranteed Bomb at Level 2+ (v9.1 Constant Danger)
+                    let type = (i === 0 && this.level >= 2) ? 'BOMB' : (Math.random() < 0.4 ? 'BOMB' : 'VOID');
                     let ox = 300 + Math.random() * (this.width - 600);
                     let oy = 100 + Math.random() * (SAFE_ZONE_Y - 200);
                     
@@ -791,27 +812,31 @@
                 
                 let allSaturated = true;
                 let maxProgress = 0;
-                let anyCoreHit = false;
-
+                let anyCoreCharging = false;
                 this.cores.forEach(c => {
                     c.update(0.007);
                     if (c.progress < 1) allSaturated = false;
                     if (c.isHit) {
-                        anyCoreHit = true;
-                        maxProgress = Math.max(maxProgress, c.progress);
+                        // Only cores STILL charging contribute to the pulse engine
+                        if (c.progress < 1) {
+                            maxProgress = Math.max(maxProgress, c.progress);
+                            anyCoreCharging = true;
+                        }
                     }
                     if (c.hudElement) c.hudElement.style.width = (c.progress * 100) + "%";
                 });
 
-                // Update Magnetic Pulse (v8.0 Rhythmic Stability)
-                if (anyCoreHit && this.thrumSynth) {
+                // Update Magnetic Pulse (v9.6 Dedicated Channel)
+                if (anyCoreCharging && this.pulseSynth) {
                     const now = Tone.now();
                     // Pulse speeds up as progress increases (0.6s down to 0.05s)
                     const pulseInterval = 0.6 - (maxProgress * 0.55);
                     if (now - this.lastPulseTime > pulseInterval) {
-                        const freq = 40 + (maxProgress * 120); // Deep thud: 40Hz to 160Hz
+                        // V10.5 Parity Logic: Shift base to 120Hz for maximum punch
+                        const freq = 120 + (maxProgress * 180); // 120Hz to 300Hz (Punchy Thump)
                         // Schedule with a tiny offset (+0.01) for rock-solid stability
-                        this.thrumSynth.triggerAttackRelease(freq, "32n", now + 0.01, 0.2 + (maxProgress * 0.5));
+                        // High-Presence Velocity baseline: 0.8
+                        this.pulseSynth.triggerAttackRelease(freq, "16n", now + 0.01, 0.8 + (maxProgress * 0.2));
                         this.lastPulseTime = now;
                     }
                 }
@@ -843,8 +868,10 @@
                     m.isHit = false;
                 });
                 this.uniqueMirrorsHit.clear();
+                const allBeamSegments = [];
 
                 this.emitters.forEach(emitter => {
+                    emitter.isHit = false;
                     emitter.beamSegments = [{ x: emitter.x, y: emitter.y }];
                     let curX = emitter.x; let curY = emitter.y;
                     let curAngle = 0; let limit = 15;
@@ -866,6 +893,24 @@
                         this.obstacles.forEach(o => {
                             const hit = getCircleIntersection(curX, curY, rayX, rayY, o.x, o.y, o.radius);
                             if (hit && hit.dist < minDist) { minDist = hit.dist; closestHit = { ...hit, obs: o, type: 'OBSTACLE' }; }
+                        });
+
+                        // BEAM-ON-BEAM COLLISION (v9.0 Signal Occlusion)
+                        this.emitters.forEach(other => {
+                            if (other === emitter) return;
+                            if (!other.beamSegments) return;
+                            for (let i = 0; i < other.beamSegments.length - 1; i++) {
+                                const s1 = other.beamSegments[i]; const s2 = other.beamSegments[i+1];
+                                const hit = getLineIntersection(curX, curY, curX + rayX * 3000, curY + rayY * 3000, s1.x, s1.y, s2.x, s2.y);
+                                if (hit) {
+                                    const dist = Math.hypot(hit.x - curX, hit.y - curY);
+                                    // SOURCE CLIPPING (v10.0 Stable): Minimal threshold to prevent source-blocking
+                                    if (dist > 5 && dist < minDist) { 
+                                        minDist = dist; 
+                                        closestHit = { ...hit, type: 'BEAM_COLLISION' }; 
+                                    }
+                                }
+                            }
                         });
 
                         let coreHitInfo = null;
@@ -895,9 +940,9 @@
                                 closestHit.mirror.isHit = true;
                                 closestHit.mirror.hitColor = emitter.color;
                                 
-                                // Tactile Beam Intercept (v7.7 Hardware Snap)
+                                // Tactile Beam Intercept (v10.3 Balanced Snap)
                                 if (!closestHit.mirror.wasHit && this.thrumSynth) {
-                                    this.thrumSynth.triggerAttackRelease("C3", "16n");
+                                    this.thrumSynth.triggerAttackRelease("C3", "16n", undefined, 0.6);
                                 }
                                 
                                 this.uniqueMirrorsHit.add(closestHit.mirror.id);
@@ -910,6 +955,9 @@
                                     this.explode(closestHit.obs.x, closestHit.obs.y, COLORS.DANGER);
                                     this.triggerGameOver("CRITICAL BOMB BREACH");
                                 }
+                                break;
+                            } else if (closestHit.type === 'BEAM_COLLISION') {
+                                if (this.frame % 30 === 0) this.createShards(closestHit.x, closestHit.y, 1, COLORS.SOLAR, 4);
                                 break;
                             }
                         } else {
