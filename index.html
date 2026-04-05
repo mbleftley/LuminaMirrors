@@ -112,6 +112,19 @@
             transition: 0.15s linear;
         }
 
+        #dock-hud {
+            position: absolute;
+            bottom: 110px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            pointer-events: none;
+        }
+
         /* OVERLAYS */
         .vibe-overlay {
             position: absolute;
@@ -321,6 +334,10 @@
                     id="timer-val">00.00s</span></div>
         </div>
 
+        <div id="dock-hud">
+            <div class="hud-panel" style="border: none; background: none; box-shadow: none;">REFLECTOR_STORAGE<br><span class="val" id="dock-val">0 / 0</span></div>
+        </div>
+
         <!-- NEW SCORE HUD -->
         <div id="score-hud" class="hud" style="top: auto; bottom: 0; padding: 15px 25px;">
              <div class="hud-panel">TOTAL_RESONANCE<br><span class="val" id="total-score-val">000000</span></div>
@@ -369,6 +386,7 @@
         const ctx = canvas.getContext('2d');
         const levelNumDisplay = document.getElementById('level-num');
         const timerDisplay = document.getElementById('timer-val');
+        const dockDisplay = document.getElementById('dock-val');
         const syncBarsWrapper = document.getElementById('sync-bars-wrapper');
 
         // --- CONSTANTS ---
@@ -471,11 +489,27 @@
                 this.id = id;
                 this.x = x; this.y = y; this.angle = angle; this.length = length;
                 this.isMoved = false;
+                this.inDock = true;
+                this.isHit = false;
+                this.hitColor = '#fff';
             }
-            draw() {
-                ctx.save(); ctx.shadowBlur = 12; ctx.shadowColor = '#fff'; ctx.strokeStyle = COLORS.SOLAR; ctx.lineWidth = 7;
-                const mx = Math.cos(this.angle) * this.length / 2; const my = Math.sin(this.angle) * this.length / 2;
-                ctx.beginPath(); ctx.moveTo(this.x - mx, this.y - my); ctx.lineTo(this.x + mx, this.y + my); ctx.stroke(); ctx.restore();
+            draw(frame) {
+                const glowColor = this.isHit ? this.hitColor : '#fff';
+                ctx.save(); 
+                ctx.shadowBlur = this.isHit ? (25 + Math.sin(frame / 5) * 10) : 12; 
+                ctx.shadowColor = glowColor; 
+                ctx.strokeStyle = this.isHit ? glowColor : COLORS.SOLAR; 
+                ctx.lineWidth = this.isHit ? 10 : 7;
+                
+                const mx = Math.cos(this.angle) * this.length / 2; 
+                const my = Math.sin(this.angle) * this.length / 2;
+                ctx.beginPath(); ctx.moveTo(this.x - mx, this.y - my); ctx.lineTo(this.x + mx, this.y + my); ctx.stroke();
+                
+                if (this.isHit) {
+                    ctx.globalAlpha = 0.3; ctx.lineWidth = 20; ctx.stroke();
+                }
+                
+                ctx.restore();
             }
         }
 
@@ -495,6 +529,7 @@
             constructor() {
                 this.level = 1; this.timeInLevel = 0; this.frame = 0;
                 this.totalScore = 0; this.uniqueMirrorsHit = new Set();
+                this.dockSlots = [];
                 this.gameState = 'MENU';
                 this.width = window.innerWidth; this.height = window.innerHeight;
                 this.emitters = []; this.cores = []; this.mirrors = []; this.obstacles = []; this.particles = [];
@@ -558,6 +593,7 @@
                 this.gameState = 'PLAYING';
                 document.getElementById('start-menu').style.display = 'none';
                 document.getElementById('main-hud').style.opacity = '1';
+                document.getElementById('dock-hud').style.opacity = '1';
                 this.createLevel();
             }
 
@@ -584,14 +620,15 @@
                 }
 
                 const mCount = 4 + Math.floor(this.level / 2);
+                const dockSpacing = Math.min(100, (this.width - 200) / mCount);
+                const dockStartX = (this.width - (mCount * dockSpacing)) / 2 + (dockSpacing / 2);
+                
+                this.dockSlots = [];
                 for (let i = 0; i < mCount; i++) {
-                    this.mirrors.push(new Mirror(
-                        i,
-                        200 + Math.random() * (this.width - 400),
-                        100 + Math.random() * (this.height - 200),
-                        (Math.floor(Math.random() * 8) * 45) * (Math.PI / 180),
-                        100
-                    ));
+                    const sx = dockStartX + (i * dockSpacing);
+                    const sy = this.height - 65;
+                    this.dockSlots.push({ x: sx, y: sy });
+                    this.mirrors.push(new Mirror(i, sx, sy, Math.PI / 2, 100));
                 }
 
                 // Rebuild HUD bars
@@ -648,8 +685,10 @@
 
                 if (allSaturated && this.cores.length > 0) this.triggerWin();
 
-                // Update Score HUD
+                // Update HUD Displays
                 if (this.totalScoreDisplay) this.totalScoreDisplay.textContent = this.totalScore.toString().padStart(6, '0');
+                const inDockCount = this.mirrors.filter(m => m.inDock).length;
+                if (dockDisplay) dockDisplay.textContent = `${inDockCount} / ${this.mirrors.length}`;
             }
 
             updateTimer() {
@@ -659,6 +698,7 @@
 
             updateOptics() {
                 this.cores.forEach(c => c.isHit = false);
+                this.mirrors.forEach(m => m.isHit = false);
                 this.uniqueMirrorsHit.clear();
 
                 this.emitters.forEach(emitter => {
@@ -709,6 +749,8 @@
                             emitter.beamSegments.push({ x: closestHit.x, y: closestHit.y });
                             if (closestHit.type === 'MIRROR') {
                                 this.uniqueMirrorsHit.add(closestHit.mirror.id);
+                                closestHit.mirror.isHit = true;
+                                closestHit.mirror.hitColor = emitter.color;
                                 curX = closestHit.x; curY = closestHit.y;
                                 curAngle = 2 * closestHit.mirror.angle - curAngle;
                                 if (this.frame % 8 === 0) this.createShards(curX, curY, 1, COLORS.TEXT, 5);
@@ -731,6 +773,26 @@
                 this.obstacles.forEach(o => o.draw(this.frame));
                 this.cores.forEach(c => c.draw(this.frame));
 
+                // Visual indicator for the dock area (Bottom Panel)
+                ctx.save();
+                ctx.translate(this.width / 2, this.height - 65);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+                ctx.shadowBlur = 40; ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                const dockW = Math.min(this.width - 100, (this.mirrors.length * 100) + 60);
+                ctx.beginPath(); ctx.roundRect(-dockW/2, -55, dockW, 110, 15); ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'; ctx.lineWidth = 1;
+                ctx.stroke(); 
+                
+                // Draw Ghost Slots
+                ctx.setTransform(1, 0, 0, 1, 0, 0); 
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)'; ctx.lineWidth = 2;
+                ctx.setLineDash([5, 10]);
+                this.dockSlots.forEach(slot => {
+                    ctx.beginPath(); ctx.moveTo(slot.x, slot.y - 40); ctx.lineTo(slot.x, slot.y + 40); ctx.stroke();
+                });
+                ctx.setLineDash([]);
+                ctx.restore();
+
                 if (this.gameState !== 'FAIL_SCREEN') {
                     this.emitters.forEach(e => {
                         if (e.beamSegments.length < 2) return;
@@ -743,7 +805,7 @@
                     });
                 }
 
-                this.mirrors.forEach(m => m.draw());
+                this.mirrors.forEach(m => m.draw(this.frame));
                 this.emitters.forEach(e => e.draw());
                 this.particles.forEach(p => p.draw());
             }
@@ -808,9 +870,35 @@
             }
 
             onPointerEnd(e) {
-                if (this.isDragging && !this.isDragging.isMoved) { 
-                    this.isDragging.angle += 45 * Math.PI / 180; 
-                    this.playPing("D6"); 
+                if (this.isDragging) {
+                    if (!this.isDragging.isMoved) { 
+                        this.isDragging.angle += Math.PI / 4;
+                        this.playPing("D4");
+                    }
+                    // Docking logic (Power Slot Snapping)
+                    if (this.isDragging.y > this.height - 130) {
+                        // Find nearest empty slot
+                        let closestSlot = null;
+                        let minDist = 150;
+                        this.dockSlots.forEach(slot => {
+                            const isOccupied = this.mirrors.some(m => m !== this.isDragging && m.inDock && m.x === slot.x);
+                            if (!isOccupied) {
+                                const d = Math.hypot(this.isDragging.x - slot.x, this.isDragging.y - slot.y);
+                                if (d < minDist) { minDist = d; closestSlot = slot; }
+                            }
+                        });
+
+                        if (closestSlot) {
+                            this.isDragging.inDock = true;
+                            this.isDragging.x = closestSlot.x;
+                            this.isDragging.y = closestSlot.y;
+                            this.isDragging.angle = Math.PI / 2; // Return to upright
+                        } else {
+                            this.isDragging.inDock = false;
+                        }
+                    } else {
+                        this.isDragging.inDock = false;
+                    }
                 }
                 this.isDragging = null;
             }
