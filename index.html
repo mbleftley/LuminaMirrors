@@ -596,9 +596,10 @@
                 
                 // Audio
                 this.fmSynth = null; this.drone = null; this.reverb = null; 
-                this.syncOsc = null; this.syncFilter = null;
+                this.plasmaFlow = null; this.syncFilter = null;
                 this.thrumSynth = null; this.clickSynth = null;
                 this.lastPingTime = 0;
+                this.isFlowActive = false;
                 
                 this.resize();
                 window.addEventListener('resize', () => this.resize());
@@ -622,22 +623,20 @@
                 this.drone = new Tone.Oscillator(40, "sine").toDestination();
                 this.drone.volume.value = -55; this.drone.start();
 
-                // CORE RESONANCE ENGINE (v7.2 Pleasant Shimmer)
+                // HARDWARE RESONANCE ENGINE (v7.7 Atmospheric Flow)
                 this.syncFilter = new Tone.Filter({
-                    frequency: 1500, type: "lowpass", rollover: -24
+                    frequency: 800, type: "lowpass", rollover: -24, Q: 1
                 }).toDestination();
-                this.syncOsc = new Tone.FatOscillator({
-                    frequency: 220, type: "triangle", count: 12, spread: 60
-                }).connect(this.syncFilter);
-                this.syncOsc.volume.value = -Infinity;
-                this.syncOsc.start();
+                this.plasmaFlow = new Tone.Noise("pink").connect(this.syncFilter);
+                this.plasmaFlow.volume.value = -Infinity;
+                this.plasmaFlow.start();
 
-                // TACTILE FEEDBACK SYNTHS (v7.4 Digital Shimmer)
-                this.thrumSynth = new Tone.PolySynth(Tone.Synth, {
-                    oscillator: { type: "sine" },
-                    envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.2 }
+                // TACTILE FEEDBACK SYNTHS (v7.7 Hardware Weight)
+                this.thrumSynth = new Tone.MetalSynth({
+                    frequency: 200, envelope: { attack: 0.001, decay: 0.1, release: 0.1 },
+                    harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5
                 }).connect(this.reverb);
-                this.thrumSynth.volume.value = -12;
+                this.thrumSynth.volume.value = -18;
 
                 this.clickSynth = new Tone.NoiseSynth({
                     noise: { type: "white" }, envelope: { attack: 0.001, decay: 0.06, release: 0.06 }
@@ -773,22 +772,22 @@
                     if (c.hudElement) c.hudElement.style.width = (c.progress * 100) + "%";
                 });
 
-                // Update Sync Audio Intensity (v7.2 Harmonic Shimmer)
-                if (this.syncOsc && this.syncFilter) {
+                // Update Hardware Resonance (v7.7 Atmospheric Flow)
+                if (this.plasmaFlow && this.syncFilter) {
                     if (anyCoreHit) {
-                        const freq = 220 + (maxProgress * 110); // A3 to E4
-                        const filter = 1500 + (maxProgress * 6000); 
-                        const vol = -18 + (maxProgress * 8); // -18dB to -10dB
-                        this.syncOsc.frequency.rampTo(freq, 0.1);
+                        const filter = 800 + (maxProgress * 12000); 
+                        const vol = -28 + (maxProgress * 18); // -28dB to -10dB
+                        const resonance = 1 + (maxProgress * 10);
                         this.syncFilter.frequency.rampTo(filter, 0.1);
-                        this.syncOsc.volume.rampTo(vol, 0.1);
+                        this.syncFilter.Q.rampTo(resonance, 0.1);
+                        this.plasmaFlow.volume.rampTo(vol, 0.1);
                     } else {
-                        this.syncOsc.volume.rampTo(-Infinity, 0.2);
+                        this.plasmaFlow.volume.rampTo(-Infinity, 0.4);
                     }
                 }
 
                 if (allSaturated && this.cores.length > 0) {
-                    if (this.syncOsc) this.syncOsc.volume.rampTo(-Infinity, 0.4);
+                    if (this.plasmaFlow) this.plasmaFlow.volume.rampTo(-Infinity, 0.8);
                     this.triggerWin();
                 }
 
@@ -867,9 +866,9 @@
                                 closestHit.mirror.isHit = true;
                                 closestHit.mirror.hitColor = emitter.color;
                                 
-                                // Tactile Beam Intercept (v7.4 Digital Shimmer)
+                                // Tactile Beam Intercept (v7.7 Hardware Snap)
                                 if (!closestHit.mirror.wasHit && this.thrumSynth) {
-                                    this.thrumSynth.triggerAttackRelease(["C6", "E6", "G6"], "16n");
+                                    this.thrumSynth.triggerAttackRelease("C3", "16n");
                                 }
                                 
                                 this.uniqueMirrorsHit.add(closestHit.mirror.id);
