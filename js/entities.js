@@ -64,20 +64,76 @@ export class Core {
         }
     }
     draw(ctx, frame) {
-        ctx.save(); ctx.shadowBlur = 20 + this.progress * 20; ctx.shadowColor = this.color;
-        ctx.strokeStyle = this.isHit ? this.color : this.color + '44'; ctx.lineWidth = 4;
+        ctx.save();
+        
+        // RESONANCE PULSE (v18.1 Heartbeat)
+        const pulse = Math.sin(frame / 8) * 0.2;
+        const mainGlow = 25 + this.progress * 35 + (this.isHit ? 15 : 0);
+        ctx.shadowBlur = mainGlow;
+        ctx.shadowColor = this.color;
+        
+        // OUTER CORONA (Expanding Ring)
+        if (this.isHit) {
+            const coronaRadius = this.radius + (frame % 40) * 1.5;
+            const coronaAlpha = 1 - (frame % 40) / 40;
+            ctx.save(); ctx.globalAlpha = coronaAlpha * 0.4;
+            ctx.strokeStyle = this.color; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(this.x, this.y, coronaRadius, 0, Math.PI * 2); ctx.stroke();
+            ctx.restore();
+        }
+
+        // PHYSICAL CORE FRAME (v18.3 Spectrum Sync)
+        ctx.strokeStyle = this.isHit ? this.color : this.color + '66';
+        ctx.lineWidth = this.isHit ? 6 : 3;
         ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.stroke();
         
-        // Liquid Fill
-        ctx.save(); ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * 0.85, 0, Math.PI * 2); ctx.clip();
-        ctx.fillStyle = this.color + '22';
-        const fillH = this.radius * 2 * this.progress;
-        ctx.fillRect(this.x - this.radius, this.y + this.radius - fillH, this.radius * 2, fillH);
+        // LIQUID WAVE FILL (v18.1 Slosh Logic)
+        ctx.save();
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * 0.9, 0, Math.PI * 2); ctx.clip();
+        
+        const fillHeight = this.radius * 2 * this.progress;
+        const waveOffset = Math.sin(frame / 10) * 8;
+        const baseY = this.y + this.radius - fillHeight;
+        
+        ctx.fillStyle = this.color;
+        ctx.globalAlpha = 0.3 + this.progress * 0.4;
+        
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.radius, this.y + this.radius);
+        ctx.lineTo(this.x - this.radius, baseY);
+        
+        // Create Wave Path
+        for(let i = 0; i <= this.radius * 2; i += 10) {
+            const wx = this.x - this.radius + i;
+            const wy = baseY + Math.sin((frame / 15) + (i / 30)) * (5 + this.progress * 5);
+            ctx.lineTo(wx, wy);
+        }
+        
+        ctx.lineTo(this.x + this.radius, this.y + this.radius);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Inner Radiant Glow
+        if (this.progress > 0) {
+            const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
+            grad.addColorStop(0, this.isHit ? '#fff' : this.color);
+            grad.addColorStop(1, 'transparent');
+            ctx.globalAlpha = 0.15 + this.progress * 0.3;
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * 0.8, 0, Math.PI * 2); ctx.fill();
+        }
+        
         ctx.restore();
 
-        // Resonance Ring
-        ctx.setLineDash([10, 15]); ctx.lineDashOffset = -frame * (1 + this.progress * 3);
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * 0.7, 0, Math.PI * 2); ctx.stroke();
+        // RESONANCE RING (Orbiting Data Bits)
+        ctx.save();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = this.isHit ? '#fff' : this.color + '88';
+        ctx.setLineDash([15, 20]);
+        ctx.lineDashOffset = -frame * (1 + this.progress * 2);
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * 0.75, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+        
         ctx.restore();
     }
 }

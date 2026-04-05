@@ -2,12 +2,11 @@ import { COLORS, HARMONIC_PALETTE, getLineIntersection, getCircleIntersection } 
 import { Shard, Emitter, Core, Mirror, Obstacle } from './entities.js';
 
 export class LuminaEngine {
-    constructor(canvas, ctx, levelNumDisplay, timerDisplay, syncBarsWrapper) {
+    constructor(canvas, ctx, levelNumDisplay, timerDisplay) {
         this.canvas = canvas;
         this.ctx = ctx;
         this.levelNumDisplay = levelNumDisplay;
         this.timerDisplay = timerDisplay;
-        this.syncBarsWrapper = syncBarsWrapper;
 
         this.level = 1; this.timeInLevel = 0; this.frame = 0;
         this.totalScore = 0; this.uniqueMirrorsHit = new Set();
@@ -189,18 +188,6 @@ export class LuminaEngine {
             this.obstacles.push(new Obstacle(bx, by, 70, 'VOID'));
         }
 
-        this.syncBarsWrapper.innerHTML = '';
-        this.cores.forEach((core, i) => {
-            const outer = document.createElement('div');
-            outer.className = 'sync-bar-outer';
-            const inner = document.createElement('div');
-            inner.className = 'sync-bar-inner';
-            inner.style.background = `linear-gradient(90deg, ${core.color}, #fff)`;
-            inner.style.boxShadow = `0 0 15px ${core.color}`;
-            outer.appendChild(inner);
-            this.syncBarsWrapper.appendChild(outer);
-            core.hudElement = inner;
-        });
 
         const oCount = Math.floor(this.level / 2);
         for (let i = 0; i < oCount; i++) {
@@ -241,7 +228,6 @@ export class LuminaEngine {
                     anyCoreCharging = true;
                 }
             }
-            if (c.hudElement) c.hudElement.style.width = (c.progress * 100) + "%";
         });
 
         if (anyCoreCharging && this.pulseSynth) {

@@ -23,12 +23,6 @@
 
         <div class="hud" id="main-hud">
             <div class="hud-panel">LEVEL<br><span class="val" id="level-num">1</span></div>
-            <div id="sync-container">
-                <div class="hud-panel">BRIDGE_SATURATION</div>
-                <div id="sync-bars-wrapper">
-                    <!-- Dynamic bars inserted here -->
-                </div>
-            </div>
             <div class="hud-panel" style="text-align: right;">DECODE_LATENCY<br><span class="val"
                     id="timer-val">00.00s</span></div>
         </div>
@@ -105,9 +99,8 @@
         const ctx = canvas.getContext('2d');
         const levelNumDisplay = document.getElementById('level-num');
         const timerDisplay = document.getElementById('timer-val');
-        const syncBarsWrapper = document.getElementById('sync-bars-wrapper');
 
-        const engine = new LuminaEngine(canvas, ctx, levelNumDisplay, timerDisplay, syncBarsWrapper);
+        const engine = new LuminaEngine(canvas, ctx, levelNumDisplay, timerDisplay);
 
         // Global shims for HTML event handlers
         window.startGame = () => engine.startGame();
