@@ -596,10 +596,10 @@
                 
                 // Audio
                 this.fmSynth = null; this.drone = null; this.reverb = null; 
-                this.plasmaFlow = null; this.syncFilter = null;
+                this.syncFilter = null; this.waterChorus = null;
                 this.thrumSynth = null; this.clickSynth = null;
                 this.lastPingTime = 0;
-                this.isFlowActive = false;
+                this.lastPulseTime = 0;
                 
                 this.resize();
                 window.addEventListener('resize', () => this.resize());
@@ -623,13 +623,11 @@
                 this.drone = new Tone.Oscillator(40, "sine").toDestination();
                 this.drone.volume.value = -55; this.drone.start();
 
-                // HARDWARE RESONANCE ENGINE (v7.7 Atmospheric Flow)
+                // MAGNETIC PULSE ENGINE (v7.9 Rhythmic Buildup)
                 this.syncFilter = new Tone.Filter({
-                    frequency: 800, type: "lowpass", rollover: -24, Q: 1
+                    frequency: 400, type: "lowpass", rollover: -12
                 }).toDestination();
-                this.plasmaFlow = new Tone.Noise("pink").connect(this.syncFilter);
-                this.plasmaFlow.volume.value = -Infinity;
-                this.plasmaFlow.start();
+                // We re-use thrumSynth for the pulses to maintain consistency
 
                 // TACTILE FEEDBACK SYNTHS (v7.7 Hardware Weight)
                 this.thrumSynth = new Tone.MetalSynth({
@@ -772,22 +770,20 @@
                     if (c.hudElement) c.hudElement.style.width = (c.progress * 100) + "%";
                 });
 
-                // Update Hardware Resonance (v7.7 Atmospheric Flow)
-                if (this.plasmaFlow && this.syncFilter) {
-                    if (anyCoreHit) {
-                        const filter = 800 + (maxProgress * 12000); 
-                        const vol = -28 + (maxProgress * 18); // -28dB to -10dB
-                        const resonance = 1 + (maxProgress * 10);
-                        this.syncFilter.frequency.rampTo(filter, 0.1);
-                        this.syncFilter.Q.rampTo(resonance, 0.1);
-                        this.plasmaFlow.volume.rampTo(vol, 0.1);
-                    } else {
-                        this.plasmaFlow.volume.rampTo(-Infinity, 0.4);
+                // Update Magnetic Pulse (v8.0 Rhythmic Stability)
+                if (anyCoreHit && this.thrumSynth) {
+                    const now = Tone.now();
+                    // Pulse speeds up as progress increases (0.6s down to 0.05s)
+                    const pulseInterval = 0.6 - (maxProgress * 0.55);
+                    if (now - this.lastPulseTime > pulseInterval) {
+                        const freq = 40 + (maxProgress * 120); // Deep thud: 40Hz to 160Hz
+                        // Schedule with a tiny offset (+0.01) for rock-solid stability
+                        this.thrumSynth.triggerAttackRelease(freq, "32n", now + 0.01, 0.2 + (maxProgress * 0.5));
+                        this.lastPulseTime = now;
                     }
                 }
 
                 if (allSaturated && this.cores.length > 0) {
-                    if (this.plasmaFlow) this.plasmaFlow.volume.rampTo(-Infinity, 0.8);
                     this.triggerWin();
                 }
 
