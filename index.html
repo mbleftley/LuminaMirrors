@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>LUMINA | Visual Resonance v3.2</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700&family=JetBrains+Mono:wght@100;400&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700&family=JetBrains+Mono:wght@100;400&display=swap"
+        rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <style>
@@ -18,68 +21,272 @@
             --font-mono: 'JetBrains Mono', monospace;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; user-select: none; }
-        body { background: var(--bg); color: var(--text); font-family: var(--font-main); overflow: hidden; height: 100dvh; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            touch-action: none;
+            user-select: none;
+        }
 
-        #game-container { width: 100%; height: 100%; position: relative; overflow: hidden; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-main);
+            overflow: hidden;
+            height: 100dvh;
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
 
         /* HUD */
-        .hud { position: absolute; top: 0; left: 0; width: 100%; padding: 25px; display: flex; justify-content: space-between; pointer-events: none; z-index: 100; opacity: 0; transition: 0.5s; }
-        .hud-panel { background: rgba(255, 255, 255, 0.02); border-top: 1px solid rgba(255,255,255,0.1); padding: 5px 20px; font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 4px; text-transform: uppercase; backdrop-filter: blur(15px); }
-        .val { font-size: 1.5rem; color: var(--gold); font-weight: 700; display: block; font-family: var(--font-main); margin-top: 4px; }
-        
-        #sync-container { position: absolute; top: 25px; left: 50%; transform: translateX(-50%); width: 320px; text-align: center; }
-        #sync-bar-outer { width: 100%; height: 8px; background: rgba(255,255,255,0.03); margin-top: 15px; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; }
-        #sync-bar-inner { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #fff); box-shadow: 0 0 25px var(--accent); transition: 0.1s linear; }
+        .hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 25px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 100;
+            opacity: 0;
+            transition: 0.5s;
+        }
+
+        .hud-panel {
+            background: rgba(255, 255, 255, 0.02);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 5px 20px;
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            backdrop-filter: blur(15px);
+        }
+
+        .val {
+            font-size: 1.5rem;
+            color: var(--gold);
+            font-weight: 700;
+            display: block;
+            font-family: var(--font-main);
+            margin-top: 4px;
+        }
+
+        #sync-container {
+            position: absolute;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 320px;
+            text-align: center;
+        }
+
+        #sync-bar-outer {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            margin-top: 15px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+        }
+
+        #sync-bar-inner {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent), #fff);
+            box-shadow: 0 0 25px var(--accent);
+            transition: 0.1s linear;
+        }
 
         /* OVERLAYS */
-        .vibe-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.2) 50%), linear-gradient(90deg, rgba(255,0,0,0.01), rgba(0,255,0,0.01), rgba(0,0,255,0.01)); background-size: 100% 4px, 3px 100%; opacity: 0.1; }
-        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(3, 3, 3, 0.96); display: flex; justify-content: center; align-items: center; flex-direction: column; z-index: 1000; backdrop-filter: blur(35px); text-align: center; }
-        .title { font-size: 5rem; font-weight: 700; letter-spacing: 25px; color: var(--accent); text-shadow: 0 0 35px var(--accent); margin-bottom: 5px; }
-        .stat { font-family: var(--font-mono); font-size: 0.75rem; opacity: 0.6; margin-bottom: 45px; letter-spacing: 4px; line-height: 2.8; }
-        .btn { background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 24px 70px; cursor: pointer; font-family: var(--font-mono); font-size: 0.9rem; letter-spacing: 6px; transition: 0.4s; border-radius: 4px; }
-        .btn:hover { background: var(--accent); color: #000; box-shadow: 0 0 45px var(--accent); }
-        
-        #start-menu .title { color: var(--gold); text-shadow: 0 0 50px var(--gold); }
-        #start-menu.active { display: flex; }
-        #level-complete, #game-over, #start-menu { display: none; }
+        .vibe-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.01), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.01));
+            background-size: 100% 4px, 3px 100%;
+            opacity: 0.1;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(3, 3, 3, 0.96);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 1000;
+            backdrop-filter: blur(35px);
+            text-align: center;
+        }
+
+        .title {
+            font-size: 5rem;
+            font-weight: 700;
+            letter-spacing: 25px;
+            color: var(--accent);
+            text-shadow: 0 0 35px var(--accent);
+            margin-bottom: 5px;
+        }
+
+        .stat {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            opacity: 0.6;
+            margin-bottom: 45px;
+            letter-spacing: 4px;
+            line-height: 2.8;
+        }
+
+        .btn {
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 24px 70px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            letter-spacing: 6px;
+            transition: 0.4s;
+            border-radius: 4px;
+        }
+
+        .btn:hover {
+            background: var(--accent);
+            color: #000;
+            box-shadow: 0 0 45px var(--accent);
+        }
+
+        #start-menu .title {
+            color: var(--gold);
+            text-shadow: 0 0 50px var(--gold);
+        }
+
+        #start-menu.active {
+            display: flex;
+        }
+
+        .btn-gold {
+            border-color: var(--gold) !important;
+            color: var(--gold) !important;
+            margin-top: 0;
+            text-decoration: none;
+            display: inline-block;
+            padding: 14px 40px;
+            font-size: 0.7rem;
+            letter-spacing: 4px;
+        }
+
+        .btn-gold:hover {
+            background: var(--gold) !important;
+            color: #000 !important;
+            box-shadow: 0 0 45px var(--gold);
+        }
+
+        .dev-credit {
+            margin-top: 45px;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            letter-spacing: 4px;
+            opacity: 0.4;
+            text-transform: uppercase;
+        }
+
+        .dev-link {
+            color: inherit;
+            text-decoration: underline;
+            text-underline-offset: 8px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .dev-link:hover {
+            opacity: 1;
+            color: #fff;
+        }
+
+        .menu-divider {
+            width: 120px;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.08);
+            margin: 40px auto 20px;
+        }
+
+        #level-complete,
+        #game-over,
+        #start-menu {
+            display: none;
+        }
     </style>
 </head>
+
 <body>
 
-<div id="game-container">
-    <div class="vibe-overlay" id="glitch-overlay" style="display: none; background: #ff3e3e44; z-index: 2000;"></div>
-    <div class="vibe-overlay"></div>
-
-    <div class="hud" id="main-hud">
-        <div class="hud-panel">SIGNAL_L03<br><span class="val" id="level-num">1</span></div>
-        <div id="sync-container">
-            <div class="hud-panel">BRIDGE_SATURATION</div>
-            <div id="sync-bar-outer"><div id="sync-bar-inner"></div></div>
+    <div id="game-container">
+        <div class="vibe-overlay" id="glitch-overlay" style="display: none; background: #ff3e3e44; z-index: 2000;">
         </div>
-        <div class="hud-panel" style="text-align: right;">DECAY_TIMER<br><span class="val" id="timer-val">30.00s</span></div>
-    </div>
+        <div class="vibe-overlay"></div>
 
-    <div id="start-menu" class="overlay active">
-        <div class="title">LUMINA</div>
-        <div class="stat">TACTICAL OPTICS | RESONANCE v3.2<br>GUIDE THE PLASMA FLOW | FILL THE CORE TO SYNC</div>
-        <button class="btn" onclick="startGame()">INITIATE LINK</button>
-    </div>
+        <div class="hud" id="main-hud">
+            <div class="hud-panel">SIGNAL_L03<br><span class="val" id="level-num">1</span></div>
+            <div id="sync-container">
+                <div class="hud-panel">BRIDGE_SATURATION</div>
+                <div id="sync-bar-outer">
+                    <div id="sync-bar-inner"></div>
+                </div>
+            </div>
+            <div class="hud-panel" style="text-align: right;">DECAY_TIMER<br><span class="val"
+                    id="timer-val">30.00s</span></div>
+        </div>
 
-    <div id="level-complete" class="overlay">
-        <div class="title">DECODED</div>
-        <div class="stat">SIGNAL_INTEGRITY: 100%<br>NEURAL_BRIDGE: SECURED</div>
-        <button class="btn" onclick="nextLevel()">NEXT SIGNAL</button>
-    </div>
+        <div id="start-menu" class="overlay active">
+            <div class="title">LUMINA</div>
+            <div class="stat">TACTICAL OPTICS | RESONANCE v3.2<br>GUIDE THE PLASMA FLOW | FILL THE CORE TO SYNC</div>
+            <button class="btn" onclick="startGame()">START GAME</button>
 
-    <div id="game-over" class="overlay">
-        <div class="title" style="color: var(--danger); text-shadow: 0 0 30px var(--danger);">DISRUPTED</div>
-        <div class="stat" id="fail-reason">SINGULARITY COLLAPSE DETECTED<br>SIGNAL_INTEGRITY: 0%</div>
-        <button class="btn" onclick="location.reload()">RE-INITIATE</button>
-    </div>
+            <div class="menu-divider"></div>
 
-    <canvas id="gameCanvas"></canvas>
-</div>
+            <a href="https://buymeacoffee.com/mbleftleyi" target="_blank" class="btn btn-gold">
+                ☕ BUY ME A COFFEE
+            </a>
+
+            <div class="dev-credit">
+                SYSTEM DEVELOPED BY <a href="https://x.com/MBLExperiment" target="_blank"
+                    class="dev-link">MBLXPERIMENT</a>
+            </div>
+        </div>
+
+        <div id="level-complete" class="overlay">
+            <div class="title">DECODED</div>
+            <div class="stat">SIGNAL_INTEGRITY: 100%<br>NEURAL_BRIDGE: SECURED</div>
+            <button class="btn" onclick="nextLevel()">NEXT SIGNAL</button>
+        </div>
+
+        <div id="game-over" class="overlay">
+            <div class="title" style="color: var(--danger); text-shadow: 0 0 30px var(--danger);">DISRUPTED</div>
+            <div class="stat" id="fail-reason">SINGULARITY COLLAPSE DETECTED<br>SIGNAL_INTEGRITY: 0%</div>
+            <button class="btn" onclick="location.reload()">RE-INITIATE</button>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+    </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -87,7 +294,7 @@
         const levelNumDisplay = document.getElementById('level-num');
         const timerDisplay = document.getElementById('timer-val');
         const syncBarInner = document.getElementById('sync-bar-inner');
-        
+
         let level = 1, timeLeft = 30, syncProgress = 0, frame = 0;
         let gameState = 'MENU';
         let width, height;
@@ -106,10 +313,10 @@
         }
 
         let lastPingTime = 0;
-        function playPing(freq = "C5", vol = -15) { 
+        function playPing(freq = "C5", vol = -15) {
             const now = Tone.now();
             if (fmSynth && now > lastPingTime + 0.1) {
-                try { fmSynth.triggerAttackRelease(freq, "32n", now + 0.05); lastPingTime = now; } catch(e) {}
+                try { fmSynth.triggerAttackRelease(freq, "32n", now + 0.05); lastPingTime = now; } catch (e) { }
             }
         }
         function playSweep(rising = true) {
@@ -132,15 +339,15 @@
                 const speed = Math.hypot(this.vx, this.vy);
                 const angle = Math.atan2(this.vy, this.vx);
                 ctx.save(); ctx.globalAlpha = this.life; ctx.strokeStyle = this.color; ctx.lineWidth = 2;
-                ctx.beginPath(); 
-                ctx.moveTo(this.x, this.y); 
-                ctx.lineTo(this.x - Math.cos(angle)*speed*2, this.y - Math.sin(angle)*speed*2); 
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - Math.cos(angle) * speed * 2, this.y - Math.sin(angle) * speed * 2);
                 ctx.stroke(); ctx.restore();
             }
         }
-        function createShards(x, y, count, color, spread=8, decay=0.03) {
+        function createShards(x, y, count, color, spread = 8, decay = 0.03) {
             for (let i = 0; i < count; i++) {
-                const vx = (Math.random()-0.5)*spread; const vy = (Math.random()-0.5)*spread;
+                const vx = (Math.random() - 0.5) * spread; const vy = (Math.random() - 0.5) * spread;
                 particles.push(new Shard(x, y, vx, vy, color, decay));
             }
         }
@@ -162,7 +369,7 @@
             document.getElementById('game-over').style.display = 'none';
             levelNumDisplay.textContent = level;
             particles = []; beamSegments = [];
-            
+
             source = { x: 80, y: height / 2 };
             let coreY = 100 + Math.random() * (height - 200);
             while (Math.abs(coreY - source.y) < 150) coreY = 100 + Math.random() * (height - 200);
@@ -183,9 +390,9 @@
             const oCount = Math.floor(level / 2) + 1;
             for (let i = 0; i < oCount; i++) {
                 const type = Math.random() < 0.4 ? 'BOMB' : 'VOID';
-                let oy = 100 + Math.random() * (height-200);
-                if (type === 'BOMB') while (Math.abs(oy - source.y) < 70) oy = 100 + Math.random() * (height-200);
-                obstacles.push({ x: 300 + Math.random() * (width-600), y: oy, radius: type === 'BOMB' ? 40 : 70, type });
+                let oy = 100 + Math.random() * (height - 200);
+                if (type === 'BOMB') while (Math.abs(oy - source.y) < 70) oy = 100 + Math.random() * (height - 200);
+                obstacles.push({ x: 300 + Math.random() * (width - 600), y: oy, radius: type === 'BOMB' ? 40 : 70, type });
             }
         }
 
@@ -205,7 +412,7 @@
         }
 
         function updateTimer() {
-            timeLeft -= 1/60; timerDisplay.textContent = Math.max(0, timeLeft).toFixed(2) + "s";
+            timeLeft -= 1 / 60; timerDisplay.textContent = Math.max(0, timeLeft).toFixed(2) + "s";
             if (timeLeft <= 0) triggerGameOver("THERMAL DECAY COMPLETE");
         }
 
@@ -221,10 +428,10 @@
 
                 mirrors.forEach(m => {
                     const hit = getLineIntersection(curX, curY, curX + rayX * 3000, curY + rayY * 3000,
-                        m.x - Math.cos(m.angle) * m.length/2, m.y - Math.sin(m.angle) * m.length/2,
-                        m.x + Math.cos(m.angle) * m.length/2, m.y + Math.sin(m.angle) * m.length/2);
+                        m.x - Math.cos(m.angle) * m.length / 2, m.y - Math.sin(m.angle) * m.length / 2,
+                        m.x + Math.cos(m.angle) * m.length / 2, m.y + Math.sin(m.angle) * m.length / 2);
                     if (hit) {
-                        const dist = Math.hypot(hit.x-curX, hit.y-curY);
+                        const dist = Math.hypot(hit.x - curX, hit.y - curY);
                         if (dist > 5 && dist < minDist) { minDist = dist; closestHit = { ...hit, mirror: m, type: 'MIRROR' }; }
                     }
                 });
@@ -253,7 +460,7 @@
                         break;
                     }
                 } else {
-                    beamSegments.push({ x: curX+rayX*2500, y: curY+rayY*2500 });
+                    beamSegments.push({ x: curX + rayX * 2500, y: curY + rayY * 2500 });
                     break;
                 }
             }
@@ -264,33 +471,33 @@
             ctx.fillStyle = '#030303'; ctx.fillRect(0, 0, width, height);
 
             obstacles.forEach(o => {
-                ctx.save(); ctx.shadowBlur = o.type === 'BOMB' ? (20 + Math.sin(frame/10)*10) : 0; ctx.shadowColor = '#ff3e3e';
+                ctx.save(); ctx.shadowBlur = o.type === 'BOMB' ? (20 + Math.sin(frame / 10) * 10) : 0; ctx.shadowColor = '#ff3e3e';
                 ctx.strokeStyle = o.type === 'BOMB' ? '#ff3e3e99' : '#222'; ctx.lineWidth = 4;
                 ctx.beginPath(); ctx.arc(o.x, o.y, o.radius, 0, Math.PI * 2); ctx.stroke();
                 ctx.restore();
             });
 
             // CORE SATURATION
-            ctx.save(); ctx.shadowBlur = 20 + syncProgress*20; ctx.shadowColor = '#00f2ff';
+            ctx.save(); ctx.shadowBlur = 20 + syncProgress * 20; ctx.shadowColor = '#00f2ff';
             ctx.strokeStyle = isCoreHit ? '#00f2ff' : '#00f2ff44'; ctx.lineWidth = 4;
             ctx.beginPath(); ctx.arc(core.x, core.y, core.radius, 0, Math.PI * 2); ctx.stroke();
 
             // LIQUID FILL
-            ctx.save(); ctx.beginPath(); ctx.arc(core.x, core.y, core.radius*0.85, 0, Math.PI * 2); ctx.clip();
-            ctx.fillStyle = '#00f2ff22'; 
+            ctx.save(); ctx.beginPath(); ctx.arc(core.x, core.y, core.radius * 0.85, 0, Math.PI * 2); ctx.clip();
+            ctx.fillStyle = '#00f2ff22';
             const fillH = core.radius * 2 * syncProgress;
-            ctx.fillRect(core.x - core.radius, core.y + core.radius - fillH, core.radius*2, fillH);
+            ctx.fillRect(core.x - core.radius, core.y + core.radius - fillH, core.radius * 2, fillH);
             ctx.restore();
-            
+
             // Resonance Ring
-            ctx.setLineDash([10, 15]); ctx.lineDashOffset = -frame * (1 + syncProgress*3);
+            ctx.setLineDash([10, 15]); ctx.lineDashOffset = -frame * (1 + syncProgress * 3);
             ctx.beginPath(); ctx.arc(core.x, core.y, core.radius * 0.7, 0, Math.PI * 2); ctx.stroke();
             ctx.restore();
 
             // PLASMA BRIDGE
             if (gameState !== 'FAIL_SCREEN' && beamSegments.length > 1) {
                 ctx.save(); ctx.shadowBlur = 25; ctx.shadowColor = '#00f2ff';
-                ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 4 + Math.sin(frame/5);
+                ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 4 + Math.sin(frame / 5);
                 ctx.setLineDash([35, 20]); ctx.lineDashOffset = -frame * 6;
                 ctx.beginPath(); ctx.moveTo(beamSegments[0].x, beamSegments[0].y);
                 for (let i = 1; i < beamSegments.length; i++) ctx.lineTo(beamSegments[i].x, beamSegments[i].y);
@@ -299,13 +506,13 @@
 
             mirrors.forEach(m => {
                 ctx.save(); ctx.shadowBlur = 12; ctx.shadowColor = '#fff'; ctx.strokeStyle = '#ffcf33'; ctx.lineWidth = 7;
-                const mx = Math.cos(m.angle)*m.length/2; const my = Math.sin(m.angle)*m.length/2;
+                const mx = Math.cos(m.angle) * m.length / 2; const my = Math.sin(m.angle) * m.length / 2;
                 ctx.beginPath(); ctx.moveTo(m.x - mx, m.y - my); ctx.lineTo(m.x + mx, m.y + my); ctx.stroke(); ctx.restore();
             });
 
             // Source
             ctx.save(); ctx.shadowBlur = 25; ctx.shadowColor = '#00f2ff'; ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.rect(source.x - 14, source.y - 14, 28, 28); ctx.fill(); 
+            ctx.beginPath(); ctx.rect(source.x - 14, source.y - 14, 28, 28); ctx.fill();
             ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 4; ctx.stroke(); ctx.restore();
 
             // Particles update & draw
@@ -329,7 +536,7 @@
         function triggerGameOver(reason) {
             if (gameState !== 'PLAYING') return;
             gameState = 'FAILING'; playSweep(false);
-            const impact = beamSegments[beamSegments.length-1];
+            const impact = beamSegments[beamSegments.length - 1];
             createShards(impact.x, impact.y, 80, '#ff3e3e', 30, 0.015); // Bomb Shards
             document.getElementById('glitch-overlay').style.display = 'block';
             anime({ targets: '#game-container', translateX: [-20, 20, 0], duration: 250, loop: 4 });
@@ -343,11 +550,11 @@
 
         // MATH
         function getLineIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
-            const den = (y4 - y3)*(x2 - x1) - (x4 - x3)*(y2 - y1);
+            const den = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
             if (den === 0) return null;
-            const ua = ((x4 - x3)*(y1 - y3) - (y4 - y3)*(x1 - x3))/den;
-            const ub = ((x2 - x1)*(y1 - y3) - (y2 - y1)*(x1 - x3))/den;
-            if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) return { x: x1 + ua*(x2 - x1), y: y1 + ua*(y2 - y1) };
+            const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / den;
+            const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / den;
+            if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) return { x: x1 + ua * (x2 - x1), y: y1 + ua * (y2 - y1) };
             return null;
         }
         function getCircleIntersection(ox, oy, dx, dy, cx, cy, r) {
@@ -386,4 +593,5 @@
         init();
     </script>
 </body>
+
 </html>
