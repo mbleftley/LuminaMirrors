@@ -88,23 +88,28 @@
             text-align: center;
         }
 
-        #sync-bar-outer {
+        #sync-bars-wrapper {
             width: 100%;
-            height: 8px;
-            background: rgba(255, 255, 255, 0.03);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
             margin-top: 15px;
+        }
+
+        .sync-bar-outer {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.03);
             position: relative;
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 4px;
+            border-radius: 3px;
         }
 
-        #sync-bar-inner {
+        .sync-bar-inner {
             height: 100%;
             width: 0%;
-            background: linear-gradient(90deg, var(--accent), #fff);
-            box-shadow: 0 0 25px var(--accent);
-            transition: 0.1s linear;
+            transition: 0.15s linear;
         }
 
         /* OVERLAYS */
@@ -308,8 +313,8 @@
             <div class="hud-panel">SIGNAL_L03<br><span class="val" id="level-num">1</span></div>
             <div id="sync-container">
                 <div class="hud-panel">BRIDGE_SATURATION</div>
-                <div id="sync-bar-outer">
-                    <div id="sync-bar-inner"></div>
+                <div id="sync-bars-wrapper">
+                    <!-- Dynamic bars inserted here -->
                 </div>
             </div>
             <div class="hud-panel" style="text-align: right;">DECAY_TIMER<br><span class="val"
@@ -347,268 +352,27 @@
 
         <canvas id="gameCanvas"></canvas>
     </div>
-
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const levelNumDisplay = document.getElementById('level-num');
         const timerDisplay = document.getElementById('timer-val');
-        const syncBarInner = document.getElementById('sync-bar-inner');
+        const syncBarsWrapper = document.getElementById('sync-bars-wrapper');
 
-        let level = 1, timeLeft = 30, syncProgress = 0, frame = 0;
-        let gameState = 'MENU';
-        let width, height;
-        let source, core, mirrors = [], obstacles = [], particles = [];
-        let isDragging = null, beamSegments = [], isCoreHit = false;
+        // --- CONSTANTS ---
+        const COLORS = {
+            CYAN: '#00f2ff',
+            NEON_GREEN: '#33ff88', 
+            SOLAR: '#ffcf33',
+            DANGER: '#ff3e3e',
+            TEXT: '#ffffff',
+            BG: '#030303',
+            VOID_STROKE: '#333b49'
+        };
 
-        // --- AUDIO ---
-        let fmSynth, drone, reverb;
-        function initAudio() {
-            reverb = new Tone.Reverb(2).toDestination();
-            fmSynth = new Tone.PolySynth(Tone.FMSynth, {
-                harmonicity: 3.5, envelope: { attack: 0.005, decay: 0.2, sustain: 0, release: 0.4 }
-            }).connect(reverb);
-            drone = new Tone.Oscillator(50, "sine").toDestination();
-            drone.volume.value = -55; drone.start();
-        }
+        const HARMONIC_PALETTE = [COLORS.CYAN, COLORS.NEON_GREEN, COLORS.SOLAR];
 
-        let lastPingTime = 0;
-        function playPing(freq = "C5", vol = -15) {
-            const now = Tone.now();
-            if (fmSynth && now > lastPingTime + 0.1) {
-                try { fmSynth.triggerAttackRelease(freq, "32n", now + 0.05); lastPingTime = now; } catch (e) { }
-            }
-        }
-        function playSweep(rising = true) {
-            if (fmSynth) {
-                const now = Tone.now();
-                fmSynth.triggerAttackRelease(rising ? "C4" : "C2", "2n", now);
-                fmSynth.triggerAttackRelease(rising ? "G4" : "G1", "2n", now + 0.2);
-            }
-        }
-
-        // --- PARTICLE SHARDS ---
-        class Shard {
-            constructor(x, y, vx, vy, color, lifeDecay = 0.03) {
-                this.x = x; this.y = y; this.vx = vx; this.vy = vy;
-                this.color = color; this.life = 1.0; this.decay = lifeDecay;
-                this.size = Math.random() * 6 + 2;
-            }
-            update() { this.x += this.vx; this.y += this.vy; this.life -= this.decay; }
-            draw() {
-                const speed = Math.hypot(this.vx, this.vy);
-                const angle = Math.atan2(this.vy, this.vx);
-                ctx.save(); ctx.globalAlpha = this.life; ctx.strokeStyle = this.color; ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(this.x, this.y);
-                ctx.lineTo(this.x - Math.cos(angle) * speed * 2, this.y - Math.sin(angle) * speed * 2);
-                ctx.stroke(); ctx.restore();
-            }
-        }
-        function createShards(x, y, count, color, spread = 8, decay = 0.03) {
-            for (let i = 0; i < count; i++) {
-                const vx = (Math.random() - 0.5) * spread; const vy = (Math.random() - 0.5) * spread;
-                particles.push(new Shard(x, y, vx, vy, color, decay));
-            }
-        }
-
-        // --- GAME CORE ---
-        function init() { resize(); createLevel(); requestAnimationFrame(loop); }
-        function resize() { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; }
-
-        function startGame() {
-            Tone.start(); Tone.context.resume(); initAudio(); gameState = 'PLAYING';
-            document.getElementById('start-menu').style.display = 'none';
-            document.getElementById('main-hud').style.opacity = '1';
-        }
-
-        function createLevel() {
-            gameState = (gameState === 'MENU') ? 'MENU' : 'PLAYING';
-            timeLeft = 30; syncProgress = 0; isCoreHit = false;
-            document.getElementById('level-complete').style.display = 'none';
-            document.getElementById('game-over').style.display = 'none';
-            levelNumDisplay.textContent = level;
-            particles = []; beamSegments = [];
-
-            source = { x: 80, y: height / 2 };
-            let coreY = 100 + Math.random() * (height - 200);
-            while (Math.abs(coreY - source.y) < 150) coreY = 100 + Math.random() * (height - 200);
-            core = { x: width - 150, y: coreY, radius: 70 };
-
-            mirrors = [];
-            const mCount = 4 + Math.floor(level / 2);
-            for (let i = 0; i < mCount; i++) {
-                mirrors.push({
-                    x: 200 + Math.random() * (width - 400),
-                    y: 100 + Math.random() * (height - 200),
-                    angle: (Math.floor(Math.random() * 8) * 45) * (Math.PI / 180),
-                    length: 100, id: i
-                });
-            }
-
-            obstacles = [];
-            const oCount = Math.floor(level / 2) + 1;
-            for (let i = 0; i < oCount; i++) {
-                const type = Math.random() < 0.4 ? 'BOMB' : 'VOID';
-                let oy = 100 + Math.random() * (height - 200);
-                if (type === 'BOMB') while (Math.abs(oy - source.y) < 70) oy = 100 + Math.random() * (height - 200);
-                obstacles.push({ x: 300 + Math.random() * (width - 600), y: oy, radius: type === 'BOMB' ? 40 : 70, type });
-            }
-        }
-
-        function loop() {
-            frame++;
-            if (gameState === 'PLAYING') {
-                updateOptics();
-                updateTimer();
-                if (isCoreHit) {
-                    syncProgress += 0.007; if (syncProgress >= 1) triggerWin();
-                } else {
-                    syncProgress = Math.max(0, syncProgress - 0.003);
-                }
-            }
-            draw();
-            requestAnimationFrame(loop);
-        }
-
-        function updateTimer() {
-            timeLeft -= 1 / 60; timerDisplay.textContent = Math.max(0, timeLeft).toFixed(2) + "s";
-            if (timeLeft <= 0) triggerGameOver("THERMAL DECAY COMPLETE");
-        }
-
-        function updateOptics() {
-            beamSegments = [{ x: source.x, y: source.y }];
-            isCoreHit = false;
-            let curX = source.x; let curY = source.y;
-            let curAngle = 0; let limit = 12;
-
-            while (limit--) {
-                let closestHit = null, minDist = 4000;
-                const rayX = Math.cos(curAngle); const rayY = Math.sin(curAngle);
-
-                mirrors.forEach(m => {
-                    const hit = getLineIntersection(curX, curY, curX + rayX * 3000, curY + rayY * 3000,
-                        m.x - Math.cos(m.angle) * m.length / 2, m.y - Math.sin(m.angle) * m.length / 2,
-                        m.x + Math.cos(m.angle) * m.length / 2, m.y + Math.sin(m.angle) * m.length / 2);
-                    if (hit) {
-                        const dist = Math.hypot(hit.x - curX, hit.y - curY);
-                        if (dist > 5 && dist < minDist) { minDist = dist; closestHit = { ...hit, mirror: m, type: 'MIRROR' }; }
-                    }
-                });
-
-                obstacles.forEach(o => {
-                    const hit = getCircleIntersection(curX, curY, rayX, rayY, o.x, o.y, o.radius);
-                    if (hit && hit.dist < minDist) { minDist = hit.dist; closestHit = { ...hit, obs: o, type: 'OBSTACLE' }; }
-                });
-
-                const coreHit = getCircleIntersection(curX, curY, rayX, rayY, core.x, core.y, core.radius);
-                if (coreHit && coreHit.dist < minDist) {
-                    beamSegments.push({ x: coreHit.x, y: coreHit.y });
-                    isCoreHit = true;
-                    if (frame % 3 === 0) createShards(coreHit.x, coreHit.y, 1, '#00f2ff', 12);
-                    break;
-                }
-
-                if (closestHit) {
-                    beamSegments.push({ x: closestHit.x, y: closestHit.y });
-                    if (closestHit.type === 'MIRROR') {
-                        curX = closestHit.x; curY = closestHit.y;
-                        curAngle = 2 * closestHit.mirror.angle - curAngle;
-                        if (frame % 8 === 0) createShards(curX, curY, 1, '#ffffff', 5);
-                    } else if (closestHit.type === 'OBSTACLE') {
-                        if (closestHit.obs.type === 'BOMB') triggerGameOver("CRITICAL BOMB BREACH");
-                        break;
-                    }
-                } else {
-                    beamSegments.push({ x: curX + rayX * 2500, y: curY + rayY * 2500 });
-                    break;
-                }
-            }
-        }
-
-        function draw() {
-            ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = '#030303'; ctx.fillRect(0, 0, width, height);
-
-            obstacles.forEach(o => {
-                ctx.save(); ctx.shadowBlur = o.type === 'BOMB' ? (20 + Math.sin(frame / 10) * 10) : 0; ctx.shadowColor = '#ff3e3e';
-                ctx.strokeStyle = o.type === 'BOMB' ? '#ff3e3e99' : '#222'; ctx.lineWidth = 4;
-                ctx.beginPath(); ctx.arc(o.x, o.y, o.radius, 0, Math.PI * 2); ctx.stroke();
-                ctx.restore();
-            });
-
-            // CORE SATURATION
-            ctx.save(); ctx.shadowBlur = 20 + syncProgress * 20; ctx.shadowColor = '#00f2ff';
-            ctx.strokeStyle = isCoreHit ? '#00f2ff' : '#00f2ff44'; ctx.lineWidth = 4;
-            ctx.beginPath(); ctx.arc(core.x, core.y, core.radius, 0, Math.PI * 2); ctx.stroke();
-
-            // LIQUID FILL
-            ctx.save(); ctx.beginPath(); ctx.arc(core.x, core.y, core.radius * 0.85, 0, Math.PI * 2); ctx.clip();
-            ctx.fillStyle = '#00f2ff22';
-            const fillH = core.radius * 2 * syncProgress;
-            ctx.fillRect(core.x - core.radius, core.y + core.radius - fillH, core.radius * 2, fillH);
-            ctx.restore();
-
-            // Resonance Ring
-            ctx.setLineDash([10, 15]); ctx.lineDashOffset = -frame * (1 + syncProgress * 3);
-            ctx.beginPath(); ctx.arc(core.x, core.y, core.radius * 0.7, 0, Math.PI * 2); ctx.stroke();
-            ctx.restore();
-
-            // PLASMA BRIDGE
-            if (gameState !== 'FAIL_SCREEN' && beamSegments.length > 1) {
-                ctx.save(); ctx.shadowBlur = 25; ctx.shadowColor = '#00f2ff';
-                ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 4 + Math.sin(frame / 5);
-                ctx.setLineDash([35, 20]); ctx.lineDashOffset = -frame * 6;
-                ctx.beginPath(); ctx.moveTo(beamSegments[0].x, beamSegments[0].y);
-                for (let i = 1; i < beamSegments.length; i++) ctx.lineTo(beamSegments[i].x, beamSegments[i].y);
-                ctx.stroke(); ctx.restore();
-            }
-
-            mirrors.forEach(m => {
-                ctx.save(); ctx.shadowBlur = 12; ctx.shadowColor = '#fff'; ctx.strokeStyle = '#ffcf33'; ctx.lineWidth = 7;
-                const mx = Math.cos(m.angle) * m.length / 2; const my = Math.sin(m.angle) * m.length / 2;
-                ctx.beginPath(); ctx.moveTo(m.x - mx, m.y - my); ctx.lineTo(m.x + mx, m.y + my); ctx.stroke(); ctx.restore();
-            });
-
-            // Source
-            ctx.save(); ctx.shadowBlur = 25; ctx.shadowColor = '#00f2ff'; ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.rect(source.x - 14, source.y - 14, 28, 28); ctx.fill();
-            ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 4; ctx.stroke(); ctx.restore();
-
-            // Particles update & draw
-            particles.forEach((p, i) => { p.update(); p.draw(); if (p.life <= 0) particles.splice(i, 1); });
-
-            // HUD
-            syncBarInner.style.width = (syncProgress * 100) + "%";
-        }
-
-        function triggerWin() {
-            if (gameState !== 'PLAYING') return;
-            gameState = 'WINNING'; playSweep(true);
-            createShards(core.x, core.y, 100, '#00f2ff', 25, 0.02);
-            setTimeout(() => {
-                document.getElementById('level-complete').style.display = 'flex';
-                gameState = 'WIN_SCREEN';
-                anime({ targets: '#level-complete', opacity: [0, 1], scale: [0.95, 1], duration: 800 });
-            }, 1200);
-        }
-
-        function triggerGameOver(reason) {
-            if (gameState !== 'PLAYING') return;
-            gameState = 'FAILING'; playSweep(false);
-            const impact = beamSegments[beamSegments.length - 1];
-            createShards(impact.x, impact.y, 80, '#ff3e3e', 30, 0.015); // Bomb Shards
-            document.getElementById('glitch-overlay').style.display = 'block';
-            anime({ targets: '#game-container', translateX: [-20, 20, 0], duration: 250, loop: 4 });
-            setTimeout(() => {
-                document.getElementById('glitch-overlay').style.display = 'none';
-                document.getElementById('fail-reason').textContent = reason;
-                document.getElementById('game-over').style.display = 'flex';
-                gameState = 'FAIL_SCREEN';
-            }, 1000);
-        }
-
-        // MATH
+        // --- UTILS ---
         function getLineIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
             const den = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
             if (den === 0) return null;
@@ -617,6 +381,7 @@
             if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) return { x: x1 + ua * (x2 - x1), y: y1 + ua * (y2 - y1) };
             return null;
         }
+
         function getCircleIntersection(ox, oy, dx, dy, cx, cy, r) {
             const vx = ox - cx; const vy = oy - cy;
             const b = 2 * (dx * vx + dy * vy);
@@ -628,29 +393,406 @@
             return null;
         }
 
-        function onPointerStart(e) {
-            if (gameState !== 'PLAYING') return;
-            const x = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-            const y = e.clientY || (e.touches ? e.touches[0].clientY : 0);
-            isDragging = mirrors.find(m => Math.hypot(m.x - x, m.y - y) < 60);
-            if (isDragging) isDragging.isMoved = false;
-        }
-        function onPointerMove(e) {
-            if (!isDragging || gameState !== 'PLAYING') return;
-            const x = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-            const y = e.clientY || (e.touches ? e.touches[0].clientY : 0);
-            isDragging.x = x; isDragging.y = y; isDragging.isMoved = true;
-        }
-        function onPointerEnd(e) {
-            if (isDragging && !isDragging.isMoved) { isDragging.angle += 45 * Math.PI / 180; playPing("D6", -15); }
-            isDragging = null;
+        // --- ENTITIES ---
+        class Shard {
+            constructor(x, y, vx, vy, color, lifeDecay = 0.03) {
+                this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+                this.color = color; this.life = 1.0; this.decay = lifeDecay;
+                this.size = Math.random() * 6 + 2;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.life -= this.decay; }
+            draw() {
+                const speed = Math.hypot(this.vx, this.vy);
+                const angle = Math.atan2(this.vy, this.vx);
+                ctx.save(); ctx.globalAlpha = this.life; ctx.strokeStyle = this.color; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - Math.cos(angle) * speed * 2, this.y - Math.sin(angle) * speed * 2);
+                ctx.stroke(); ctx.restore();
+            }
         }
 
-        window.nextLevel = () => { level++; createLevel(); }
-        window.addEventListener('mousedown', onPointerStart); window.addEventListener('mousemove', onPointerMove); window.addEventListener('mouseup', onPointerEnd);
-        window.addEventListener('touchstart', onPointerStart); window.addEventListener('touchmove', onPointerMove); window.addEventListener('touchend', onPointerEnd);
-        window.addEventListener('resize', resize);
-        init();
+        class Emitter {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.beamSegments = [];
+            }
+            draw() {
+                ctx.save(); ctx.shadowBlur = 25; ctx.shadowColor = this.color; ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.rect(this.x - 14, this.y - 14, 28, 28); ctx.fill();
+                ctx.strokeStyle = this.color; ctx.lineWidth = 4; ctx.stroke(); ctx.restore();
+            }
+        }
+
+        class Core {
+            constructor(x, y, radius, color) {
+                this.x = x; this.y = y; this.radius = radius; this.color = color;
+                this.progress = 0; this.isHit = false;
+            }
+            update(delta) {
+                if (this.isHit) {
+                    this.progress = Math.min(1, this.progress + delta);
+                } else {
+                    this.progress = Math.max(0, this.progress - delta / 2);
+                }
+            }
+            draw(frame) {
+                ctx.save(); ctx.shadowBlur = 20 + this.progress * 20; ctx.shadowColor = this.color;
+                ctx.strokeStyle = this.isHit ? this.color : this.color + '44'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.stroke();
+                
+                // Liquid Fill
+                ctx.save(); ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * 0.85, 0, Math.PI * 2); ctx.clip();
+                ctx.fillStyle = this.color + '22';
+                const fillH = this.radius * 2 * this.progress;
+                ctx.fillRect(this.x - this.radius, this.y + this.radius - fillH, this.radius * 2, fillH);
+                ctx.restore();
+
+                // Resonance Ring
+                ctx.setLineDash([10, 15]); ctx.lineDashOffset = -frame * (1 + this.progress * 3);
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * 0.7, 0, Math.PI * 2); ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        class Mirror {
+            constructor(x, y, angle, length) {
+                this.x = x; this.y = y; this.angle = angle; this.length = length;
+                this.isMoved = false;
+            }
+            draw() {
+                ctx.save(); ctx.shadowBlur = 12; ctx.shadowColor = '#fff'; ctx.strokeStyle = COLORS.SOLAR; ctx.lineWidth = 7;
+                const mx = Math.cos(this.angle) * this.length / 2; const my = Math.sin(this.angle) * this.length / 2;
+                ctx.beginPath(); ctx.moveTo(this.x - mx, this.y - my); ctx.lineTo(this.x + mx, this.y + my); ctx.stroke(); ctx.restore();
+            }
+        }
+
+        class Obstacle {
+            constructor(x, y, radius, type) {
+                this.x = x; this.y = y; this.radius = radius; this.type = type; // 'BOMB' or 'VOID'
+            }
+            draw(frame) {
+                ctx.save(); ctx.shadowBlur = this.type === 'BOMB' ? (20 + Math.sin(frame / 10) * 10) : 0; ctx.shadowColor = COLORS.DANGER;
+                ctx.strokeStyle = this.type === 'BOMB' ? COLORS.DANGER + '99' : COLORS.VOID_STROKE; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // --- GAME ENGINE ---
+        class LuminaEngine {
+            constructor() {
+                this.level = 1; this.timeLeft = 30; this.frame = 0;
+                this.gameState = 'MENU';
+                this.width = window.innerWidth; this.height = window.innerHeight;
+                this.emitters = []; this.cores = []; this.mirrors = []; this.obstacles = []; this.particles = [];
+                this.isDragging = null;
+                
+                // Audio
+                this.fmSynth = null; this.drone = null; this.reverb = null; this.lastPingTime = 0;
+                
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                window.addEventListener('mousedown', (e) => this.onPointerStart(e));
+                window.addEventListener('mousemove', (e) => this.onPointerMove(e));
+                window.addEventListener('mouseup', (e) => this.onPointerEnd(e));
+                window.addEventListener('touchstart', (e) => this.onPointerStart(e));
+                window.addEventListener('touchmove', (e) => this.onPointerMove(e));
+                window.addEventListener('touchend', (e) => this.onPointerEnd(e));
+                
+                this.loop();
+            }
+
+            initAudio() {
+                if (this.fmSynth) return;
+                this.reverb = new Tone.Reverb(2).toDestination();
+                this.fmSynth = new Tone.PolySynth(Tone.FMSynth, {
+                    harmonicity: 3.5, envelope: { attack: 0.005, decay: 0.2, sustain: 0, release: 0.4 }
+                }).connect(this.reverb);
+                this.drone = new Tone.Oscillator(50, "sine").toDestination();
+                this.drone.volume.value = -55; this.drone.start();
+            }
+
+            playPing(freq = "C5") {
+                const now = Tone.now();
+                if (this.fmSynth && now > this.lastPingTime + 0.1) {
+                    try { this.fmSynth.triggerAttackRelease(freq, "32n", now + 0.05); this.lastPingTime = now; } catch (e) { }
+                }
+            }
+
+            playSweep(rising = true) {
+                if (this.fmSynth) {
+                    const now = Tone.now();
+                    this.fmSynth.triggerAttackRelease(rising ? "C4" : "C2", "2n", now);
+                    this.fmSynth.triggerAttackRelease(rising ? "G4" : "G1", "2n", now + 0.2);
+                }
+            }
+
+            createShards(x, y, count, color, spread = 8, decay = 0.03) {
+                for (let i = 0; i < count; i++) {
+                    const vx = (Math.random() - 0.5) * spread; const vy = (Math.random() - 0.5) * spread;
+                    this.particles.push(new Shard(x, y, vx, vy, color, decay));
+                }
+            }
+
+            resize() {
+                this.width = canvas.width = window.innerWidth;
+                this.height = canvas.height = window.innerHeight;
+            }
+
+            startGame() {
+                Tone.start(); Tone.context.resume(); this.initAudio();
+                this.gameState = 'PLAYING';
+                document.getElementById('start-menu').style.display = 'none';
+                document.getElementById('main-hud').style.opacity = '1';
+                this.createLevel();
+            }
+
+            createLevel() {
+                this.timeLeft = 35; 
+                this.cores.forEach(c => c.progress = 0);
+                document.getElementById('level-complete').style.display = 'none';
+                document.getElementById('game-over').style.display = 'none';
+                levelNumDisplay.textContent = this.level;
+                this.particles = []; this.mirrors = []; this.obstacles = []; this.emitters = []; this.cores = [];
+
+                // Multi-Emitter Scaling
+                let emitterCount = 1;
+                if (this.level >= 8) emitterCount = 3;
+                else if (this.level >= 5) emitterCount = 2;
+
+                const spacing = this.height / (emitterCount + 1);
+                for (let i = 0; i < emitterCount; i++) {
+                    const color = HARMONIC_PALETTE[i % HARMONIC_PALETTE.length];
+                    this.emitters.push(new Emitter(80, spacing * (i + 1), color));
+                    
+                    let coreY = 100 + Math.random() * (this.height - 200);
+                    this.cores.push(new Core(this.width - 150, coreY, 65 - (emitterCount * 5), color));
+                }
+
+                // Rebuild HUD bars
+                syncBarsWrapper.innerHTML = '';
+                this.cores.forEach((core, i) => {
+                    const outer = document.createElement('div');
+                    outer.className = 'sync-bar-outer';
+                    const inner = document.createElement('div');
+                    inner.className = 'sync-bar-inner';
+                    inner.style.background = `linear-gradient(90deg, ${core.color}, #fff)`;
+                    inner.style.boxShadow = `0 0 15px ${core.color}`;
+                    outer.appendChild(inner);
+                    syncBarsWrapper.appendChild(outer);
+                    core.hudElement = inner;
+                });
+
+                const mCount = 4 + Math.floor(this.level / 2);
+                for (let i = 0; i < mCount; i++) {
+                    this.mirrors.push(new Mirror(
+                        200 + Math.random() * (this.width - 400),
+                        100 + Math.random() * (this.height - 200),
+                        (Math.floor(Math.random() * 8) * 45) * (Math.PI / 180),
+                        100
+                    ));
+                }
+
+                const oCount = Math.floor(this.level / 2) + 1;
+                for (let i = 0; i < oCount; i++) {
+                    const type = Math.random() < 0.4 ? 'BOMB' : 'VOID';
+                    let ox = 300 + Math.random() * (this.width - 600);
+                    let oy = 100 + Math.random() * (this.height - 200);
+                    
+                    // SAFETY CHECK: Ensure obstacles don't block the initial horizontal emitter paths
+                    let attempts = 0;
+                    while (this.emitters.some(e => Math.abs(oy - e.y) < 75) && attempts < 20) {
+                        oy = 100 + Math.random() * (this.height - 200);
+                        attempts++;
+                    }
+                    
+                    this.obstacles.push(new Obstacle(ox, oy, type === 'BOMB' ? 40 : 70, type));
+                }
+            }
+
+            update() {
+                this.frame++;
+
+                // Update particles in all active states (Winning/Failing/Playing)
+                this.particles.forEach((p, i) => {
+                    p.update();
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                });
+
+                if (this.gameState !== 'PLAYING') return;
+
+                this.updateTimer();
+                this.updateOptics();
+                
+                let allSaturated = true;
+                this.cores.forEach(c => {
+                    c.update(0.007);
+                    if (c.progress < 1) allSaturated = false;
+                    if (c.hudElement) c.hudElement.style.width = (c.progress * 100) + "%";
+                });
+
+                if (allSaturated && this.cores.length > 0) this.triggerWin();
+            }
+
+            updateTimer() {
+                this.timeLeft -= 1 / 60;
+                timerDisplay.textContent = Math.max(0, this.timeLeft).toFixed(2) + "s";
+                if (this.timeLeft <= 0) this.triggerGameOver("THERMAL DECAY COMPLETE");
+            }
+
+            updateOptics() {
+                this.cores.forEach(c => c.isHit = false);
+
+                this.emitters.forEach(emitter => {
+                    emitter.beamSegments = [{ x: emitter.x, y: emitter.y }];
+                    let curX = emitter.x; let curY = emitter.y;
+                    let curAngle = 0; let limit = 15;
+
+                    while (limit--) {
+                        let closestHit = null, minDist = 4000;
+                        const rayX = Math.cos(curAngle); const rayY = Math.sin(curAngle);
+
+                        this.mirrors.forEach(m => {
+                            const hit = getLineIntersection(curX, curY, curX + rayX * 3000, curY + rayY * 3000,
+                                m.x - Math.cos(m.angle) * m.length / 2, m.y - Math.sin(m.angle) * m.length / 2,
+                                m.x + Math.cos(m.angle) * m.length / 2, m.y + Math.sin(m.angle) * m.length / 2);
+                            if (hit) {
+                                const dist = Math.hypot(hit.x - curX, hit.y - curY);
+                                if (dist > 5 && dist < minDist) { minDist = dist; closestHit = { ...hit, mirror: m, type: 'MIRROR' }; }
+                            }
+                        });
+
+                        this.obstacles.forEach(o => {
+                            const hit = getCircleIntersection(curX, curY, rayX, rayY, o.x, o.y, o.radius);
+                            if (hit && hit.dist < minDist) { minDist = hit.dist; closestHit = { ...hit, obs: o, type: 'OBSTACLE' }; }
+                        });
+
+                        let coreHitInfo = null;
+                        this.cores.forEach(core => {
+                            const hit = getCircleIntersection(curX, curY, rayX, rayY, core.x, core.y, core.radius);
+                            if (hit && hit.dist < minDist) {
+                                minDist = hit.dist;
+                                coreHitInfo = { ...hit, core: core };
+                            }
+                        });
+
+                        if (coreHitInfo) {
+                            emitter.beamSegments.push({ x: coreHitInfo.x, y: coreHitInfo.y });
+                            if (coreHitInfo.core.color === emitter.color) {
+                                coreHitInfo.core.isHit = true;
+                                if (this.frame % 3 === 0) this.createShards(coreHitInfo.x, coreHitInfo.y, 1, emitter.color, 12);
+                            } else {
+                                if (this.frame % 5 === 0) this.createShards(coreHitInfo.x, coreHitInfo.y, 1, COLORS.DANGER, 5);
+                            }
+                            break;
+                        }
+
+                        if (closestHit) {
+                            emitter.beamSegments.push({ x: closestHit.x, y: closestHit.y });
+                            if (closestHit.type === 'MIRROR') {
+                                curX = closestHit.x; curY = closestHit.y;
+                                curAngle = 2 * closestHit.mirror.angle - curAngle;
+                                if (this.frame % 8 === 0) this.createShards(curX, curY, 1, COLORS.TEXT, 5);
+                            } else if (closestHit.type === 'OBSTACLE') {
+                                if (closestHit.obs.type === 'BOMB') this.triggerGameOver("CRITICAL BOMB BREACH");
+                                break;
+                            }
+                        } else {
+                            emitter.beamSegments.push({ x: curX + rayX * 2500, y: curY + rayY * 2500 });
+                            break;
+                        }
+                    }
+                });
+            }
+
+            draw() {
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.fillStyle = COLORS.BG; ctx.fillRect(0, 0, this.width, this.height);
+
+                this.obstacles.forEach(o => o.draw(this.frame));
+                this.cores.forEach(c => c.draw(this.frame));
+
+                if (this.gameState !== 'FAIL_SCREEN') {
+                    this.emitters.forEach(e => {
+                        if (e.beamSegments.length < 2) return;
+                        ctx.save(); ctx.shadowBlur = 25; ctx.shadowColor = e.color;
+                        ctx.strokeStyle = e.color; ctx.lineWidth = 4 + Math.sin(this.frame / 5);
+                        ctx.setLineDash([35, 20]); ctx.lineDashOffset = -this.frame * 6;
+                        ctx.beginPath(); ctx.moveTo(e.beamSegments[0].x, e.beamSegments[0].y);
+                        for (let i = 1; i < e.beamSegments.length; i++) ctx.lineTo(e.beamSegments[i].x, e.beamSegments[i].y);
+                        ctx.stroke(); ctx.restore();
+                    });
+                }
+
+                this.mirrors.forEach(m => m.draw());
+                this.emitters.forEach(e => e.draw());
+                this.particles.forEach(p => p.draw());
+            }
+
+            triggerWin() {
+                if (this.gameState !== 'PLAYING') return;
+                this.gameState = 'WINNING'; this.playSweep(true);
+                this.cores.forEach(c => this.createShards(c.x, c.y, 40, c.color, 25, 0.02));
+                setTimeout(() => {
+                    document.getElementById('level-complete').style.display = 'flex';
+                    this.gameState = 'WIN_SCREEN';
+                    anime({ targets: '#level-complete', opacity: [0, 1], scale: [0.95, 1], duration: 800 });
+                }, 1200);
+            }
+
+            triggerGameOver(reason) {
+                if (this.gameState !== 'PLAYING') return;
+                this.gameState = 'FAILING'; this.playSweep(false);
+                document.getElementById('glitch-overlay').style.display = 'block';
+                anime({ targets: '#game-container', translateX: [-20, 20, 0], duration: 250, loop: 4 });
+                setTimeout(() => {
+                    document.getElementById('glitch-overlay').style.display = 'none';
+                    document.getElementById('fail-reason').textContent = reason;
+                    document.getElementById('game-over').style.display = 'flex';
+                    this.gameState = 'FAIL_SCREEN';
+                }, 1000);
+            }
+
+            nextLevel() {
+                this.level++;
+                this.createLevel();
+                this.gameState = 'PLAYING';
+            }
+
+            onPointerStart(e) {
+                if (this.gameState !== 'PLAYING') return;
+                const x = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+                const y = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+                this.isDragging = this.mirrors.find(m => Math.hypot(m.x - x, m.y - y) < 60);
+                if (this.isDragging) this.isDragging.isMoved = false;
+            }
+
+            onPointerMove(e) {
+                if (!this.isDragging || this.gameState !== 'PLAYING') return;
+                const x = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+                const y = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+                this.isDragging.x = x; this.isDragging.y = y; this.isDragging.isMoved = true;
+            }
+
+            onPointerEnd(e) {
+                if (this.isDragging && !this.isDragging.isMoved) { 
+                    this.isDragging.angle += 45 * Math.PI / 180; 
+                    this.playPing("D6"); 
+                }
+                this.isDragging = null;
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        const engine = new LuminaEngine();
+
+        function startGame() { engine.startGame(); }
+        function nextLevel() { engine.nextLevel(); }
     </script>
 </body>
 
