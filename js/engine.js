@@ -124,10 +124,16 @@ export class LuminaEngine {
         this.createLevel();
     }
 
-    isSafe(x, y, radius, buffer = 40) {
-        // Check Laser Paths (Infinite horizontal firing lane)
+    isSafe(x, y, radius, buffer = 40, type = 'VOID') {
+        // --- TYPE-AWARE Safety Protocol (v11.0) ---
         for (let e of this.emitters) {
-            if (Math.abs(y - e.y) < (radius + buffer) && x > e.x) return false;
+            // 1. Emitter-Head Clearance (Proximal range - All types)
+            if (Math.hypot(x - e.x, y - e.y) < (radius + 150)) return false;
+
+            // 2. SIGNAL PATH Clearance (Infinite lane - BOMB ONLY)
+            if (type === 'BOMB') {
+                if (Math.abs(y - e.y) < (radius + buffer + 20) && x > e.x) return false;
+            }
         }
 
         // Check Emitters
@@ -178,30 +184,45 @@ export class LuminaEngine {
 
             this.cores.push(new Core(cx, cy, 65 - (emitterCount * 5), color));
 
-            // STRATEGIC BLOCKER (v11.0 Safety Check)
-            let bx, by; attempts = 0;
-            do {
-                bx = (80 + (this.width - 150)) / 2 + (Math.random() - 0.5) * 100;
-                by = (ey + cy) / 2 + (Math.random() - 0.5) * 60;
-                attempts++;
-            } while (!this.isSafe(bx, by, 70, 30) && attempts < 30);
-            this.obstacles.push(new Obstacle(bx, by, 70, 'VOID'));
         }
 
 
-        const oCount = Math.floor(this.level / 2);
+        const oCount = Math.min(8, this.level + 1); // v11.0: Advanced Scaling (Start-2, Max-8)
         for (let i = 0; i < oCount; i++) {
-            const type = (i === 0 && this.level >= 2) ? 'BOMB' : (Math.random() < 0.4 ? 'BOMB' : 'VOID');
-            const radius = type === 'BOMB' ? 40 : 60;
+            // ROLE DIFFERENTIATION (v11.0)
+            const type = (i === 0) ? 'VOID' : (Math.random() < 0.4 ? 'BOMB' : 'VOID');
+            const radius = type === 'BOMB' ? (30 + Math.random() * 35) : (35 + Math.random() * 50);
             
-            let ox, oy, attempts = 0;
+            let ox, oy, attempts = 0, isValid = false;
+            // Target the Corridor (v10.1 Smart Spawner)
+            const e = this.emitters[Math.floor(Math.random() * this.emitters.length)];
+            const c = this.cores[Math.floor(Math.random() * this.cores.length)];
+
             do {
-                ox = 300 + Math.random() * (this.width - 600);
-                oy = 100 + Math.random() * (SAFE_ZONE_Y - 200);
                 attempts++;
-            } while (!this.isSafe(ox, oy, radius, 40) && attempts < 30);
+                const t = 0.25 + Math.random() * 0.6; // Interpolate along signal path
+                const tx = e.x + (c.x - e.x) * t;
+                let ty = e.y + (c.y - e.y) * t;
+                
+                // MANDATORY BLOCKER (Only VOID can block the initial lane)
+                if (i === 0) ty = e.y;
+
+                ox = tx + (Math.random() - 0.5) * 100;
+                oy = ty + (Math.random() - 0.5) * (i === 0 ? 10 : 250);
+
+                // --- CALIBRATED Collision Check (v17.5 Safe Lane) ---
+                const overlapClearance = this.obstacles.every(obst => 
+                    Math.hypot(ox - obst.x, oy - obst.y) > (radius + obst.radius + 50)
+                );
+                
+                const isSpawnSafe = this.isSafe(ox, oy, radius, 60, type); 
+                
+                if (isSpawnSafe && overlapClearance && attempts < 300) {
+                    isValid = true;
+                }
+            } while (!isValid && attempts < 300);
             
-            this.obstacles.push(new Obstacle(ox, oy, radius, type));
+            if (isValid) this.obstacles.push(new Obstacle(ox, oy, radius, type));
         }
     }
 
@@ -261,6 +282,7 @@ export class LuminaEngine {
 
     updateOptics() {
         this.cores.forEach(c => c.isHit = false);
+        this.obstacles.forEach(o => o.isHit = false);
         this.mirrors.forEach(m => {
             m.wasHit = m.isHit; 
             m.isHit = false;
@@ -345,6 +367,13 @@ export class LuminaEngine {
                         curAngle = 2 * closestHit.mirror.angle - curAngle;
                         if (this.frame % 8 === 0) this.createShards(curX, curY, 1, COLORS.TEXT, 5);
                     } else if (closestHit.type === 'OBSTACLE') {
+                        // Impact Particles (v18.0 - Tuned Down)
+                        closestHit.obs.isHit = true;
+                        if (this.frame % 10 === 0) {
+                            const pColor = closestHit.obs.type === 'BOMB' ? COLORS.DANGER : '#fff';
+                            this.createShards(closestHit.x, closestHit.y, 1, pColor, 6);
+                        }
+
                         if (closestHit.obs.type === 'BOMB') {
                             this.explode(closestHit.obs.x, closestHit.obs.y, COLORS.DANGER);
                             this.triggerGameOver("CRITICAL BOMB BREACH");

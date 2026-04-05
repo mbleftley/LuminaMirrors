@@ -278,12 +278,85 @@ export class Mirror {
 
 export class Obstacle {
     constructor(x, y, radius, type) {
-        this.x = x; this.y = y; this.radius = radius; this.type = type; // 'BOMB' or 'VOID'
+        this.x = x; this.y = y; this.radius = radius; this.type = type; 
+        this.isHit = false;
     }
     draw(ctx, frame) {
-        ctx.save(); ctx.shadowBlur = this.type === 'BOMB' ? (20 + Math.sin(frame / 10) * 10) : 0; ctx.shadowColor = COLORS.DANGER;
-        ctx.strokeStyle = this.type === 'BOMB' ? COLORS.DANGER + '99' : COLORS.VOID_STROKE; ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.stroke();
+        ctx.save();
+        
+        if (this.type === 'BOMB') {
+            // --- CRITICAL_MINE (Stabilized Heartbeat) ---
+            const pulse = (Math.sin(frame / 10) * 0.4 + 0.6); 
+            const shake = (Math.random() - 0.5) * pulse * 1.2;
+            ctx.translate(this.x + shake, this.y + shake);
+            
+            ctx.strokeStyle = COLORS.DANGER; ctx.lineWidth = 4;
+            ctx.beginPath();
+            const spikes = 14;
+            for (let i = 0; i < spikes * 2; i++) {
+                const angle = i * Math.PI / spikes;
+                const r = (i % 2 === 0) ? this.radius : this.radius * 0.8;
+                const px = Math.cos(angle) * r;
+                const py = Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath(); ctx.stroke();
+            
+            const coreGlow = 20 + pulse * 25;
+            ctx.shadowBlur = coreGlow; ctx.shadowColor = COLORS.DANGER;
+            ctx.fillStyle = COLORS.DANGER;
+            ctx.globalAlpha = 0.8 + pulse * 0.2;
+            ctx.beginPath(); ctx.arc(0, 0, this.radius * 0.4, 0, Math.PI * 2); ctx.fill();
+            
+            ctx.fillStyle = '#fff'; ctx.globalAlpha = pulse * 0.4;
+            ctx.beginPath(); ctx.arc(0, 0, this.radius * 0.2, 0, Math.PI * 2); ctx.fill();
+
+        } else {
+            // --- SINGULARITY_ARRAY (Precision Circular Core) ---
+            ctx.translate(this.x, this.y);
+            
+            // 1. CIRCULAR HARDWARE SHROUD (Aperture Frame)
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; 
+            ctx.globalAlpha = 0.4; 
+            ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.stroke();
+            
+            // 2. RADIAL APERTURE TABS (Control Hardware)
+            ctx.lineWidth = 4; ctx.globalAlpha = 0.6;
+            for (let i = 0; i < 8; i++) {
+                const angle = i * Math.PI / 4;
+                const tx = Math.cos(angle) * this.radius;
+                const ty = Math.sin(angle) * this.radius;
+                ctx.save(); ctx.translate(tx, ty); ctx.rotate(angle);
+                ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.stroke();
+                ctx.restore();
+            }
+
+            // 3. GRAVITATIONAL IMPLOSION (High-Contrast Pulse)
+            if (this.isHit) {
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; 
+                [0, 1, 2].forEach(i => {
+                    const age = ((frame / 35) + (i / 3)) % 1;
+                    const r = this.radius * (1 - age);
+                    ctx.globalAlpha = (1 - age) * 0.5; // Fade-out as it implodes
+                    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+                });
+            }
+
+            // 4. THE ABYSS (High-Density Dark Core)
+            const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, this.radius);
+            grad.addColorStop(0, '#000'); grad.addColorStop(0.7, '#07070d'); grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
+            
+            // 5. INTERFERENCE STATIC (Scanning Noise)
+            if (frame % 4 === 0) {
+                ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.15;
+                const rx = (Math.random() - 0.5) * this.radius * 1.5;
+                const ry = (Math.random() - 0.5) * this.radius * 1.5;
+                ctx.fillRect(rx, ry, 2, 2);
+            }
+        }
+        
         ctx.restore();
     }
 }
