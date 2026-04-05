@@ -113,73 +113,107 @@ export class Core {
     draw(ctx, frame) {
         ctx.save();
         
-        // RESONANCE PULSE (v18.1 Heartbeat)
         const pulse = Math.sin(frame / 8) * 0.2;
-        const mainGlow = 25 + this.progress * 35 + (this.isHit ? 15 : 0);
-        ctx.shadowBlur = mainGlow;
-        ctx.shadowColor = this.color;
+        const mainGlow = 30 + this.progress * 40 + (this.isHit ? 20 : 0);
+        const hitAnim = this.isHit ? (1 + Math.sin(frame / 3) * 0.15) : 1;
         
-        // OUTER CORONA (Expanding Ring)
-        if (this.isHit) {
-            const coronaRadius = this.radius + (frame % 40) * 1.5;
-            const coronaAlpha = 1 - (frame % 40) / 40;
-            ctx.save(); ctx.globalAlpha = coronaAlpha * 0.4;
-            ctx.strokeStyle = this.color; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(this.x, this.y, coronaRadius, 0, Math.PI * 2); ctx.stroke();
-            ctx.restore();
-        }
-
-        // PHYSICAL CORE FRAME (v18.3 Spectrum Sync)
-        ctx.strokeStyle = this.isHit ? this.color : this.color + '66';
-        ctx.lineWidth = this.isHit ? 6 : 3;
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.stroke();
-        
-        // LIQUID WAVE FILL (v18.1 Slosh Logic)
+        // 1. HEX-GRID CONTAINMENT SHROUD (Structural Frame)
         ctx.save();
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * 0.9, 0, Math.PI * 2); ctx.clip();
+        ctx.strokeStyle = this.isHit ? this.color : '#444';
+        ctx.lineWidth = 3; ctx.shadowBlur = this.isHit ? 20 : 0; ctx.shadowColor = this.color;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = i * Math.PI / 3;
+            const hx = this.x + Math.cos(angle) * (this.radius + 12);
+            const hy = this.y + Math.sin(angle) * (this.radius + 12);
+            if (i === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+        }
+        ctx.closePath(); ctx.stroke();
+        
+        // Shroud Brackets (Corner Reinforcements)
+        ctx.lineWidth = 6;
+        for (let i = 0; i < 6; i++) {
+            const angle = i * Math.PI / 3;
+            ctx.beginPath();
+            ctx.arc(this.x + Math.cos(angle) * (this.radius + 12), this.y + Math.sin(angle) * (this.radius + 12), 4, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        ctx.restore();
+
+        // 2. COUNTER-ROTATING SYNC RINGS (Data Telemetry)
+        [ { dir: 1, r: 1.25, dash: [10, 20], speed: 40 }, { dir: -1, r: 1.4, dash: [5, 15], speed: 60 } ].forEach(ring => {
+            ctx.save();
+            ctx.strokeStyle = this.isHit ? this.color : this.color + '44';
+            ctx.lineWidth = 2;
+            ctx.setLineDash(ring.dash);
+            ctx.lineDashOffset = (frame / ring.speed) * ring.dir * 50;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * ring.r, 0, Math.PI * 2); ctx.stroke();
+            ctx.restore();
+        });
+
+        // 3. ACTIVE INTAKE FINS (Kinetic Hardware)
+        const finExt = this.isHit ? 15 : 0;
+        ctx.strokeStyle = this.isHit ? '#fff' : this.color + '88'; ctx.lineWidth = 4;
+        [0, 1, 2, 3].forEach(i => {
+            const angle = (i * Math.PI / 2) + Math.PI / 4;
+            const fx = this.x + Math.cos(angle) * (this.radius + 5 + finExt);
+            const fy = this.y + Math.sin(angle) * (this.radius + 5 + finExt);
+            ctx.save(); ctx.translate(fx, fy); ctx.rotate(angle);
+            ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(12, 0); ctx.lineTo(0, 8); ctx.stroke();
+            ctx.restore();
+        });
+
+        // 4. CORE LIQUID PROCESSING (Original Slosh Logic + Digital Overlay)
+        ctx.save();
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.clip();
         
         const fillHeight = this.radius * 2 * this.progress;
-        const waveOffset = Math.sin(frame / 10) * 8;
         const baseY = this.y + this.radius - fillHeight;
         
+        // Fill Body
         ctx.fillStyle = this.color;
-        ctx.globalAlpha = 0.3 + this.progress * 0.4;
+        ctx.globalAlpha = 0.2 + this.progress * 0.5;
+        ctx.shadowBlur = mainGlow; ctx.shadowColor = this.color;
         
         ctx.beginPath();
         ctx.moveTo(this.x - this.radius, this.y + this.radius);
         ctx.lineTo(this.x - this.radius, baseY);
-        
-        // Create Wave Path
-        for(let i = 0; i <= this.radius * 2; i += 10) {
+        for(let i = 0; i <= this.radius * 2; i += 8) {
             const wx = this.x - this.radius + i;
-            const wy = baseY + Math.sin((frame / 15) + (i / 30)) * (5 + this.progress * 5);
+            const wy = baseY + Math.sin((frame / 15) + (i / 30)) * (4 + this.progress * 10);
             ctx.lineTo(wx, wy);
         }
-        
         ctx.lineTo(this.x + this.radius, this.y + this.radius);
-        ctx.closePath();
-        ctx.fill();
+        ctx.closePath(); ctx.fill();
         
-        // Inner Radiant Glow
+        // Digital Grid Overlay (Matrix Scan)
         if (this.progress > 0) {
-            const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
-            grad.addColorStop(0, this.isHit ? '#fff' : this.color);
-            grad.addColorStop(1, 'transparent');
-            ctx.globalAlpha = 0.15 + this.progress * 0.3;
-            ctx.fillStyle = grad;
-            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * 0.8, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.globalAlpha = 0.1 * this.progress; ctx.lineWidth = 1;
+            for(let i = -this.radius; i < this.radius; i += 15) {
+                ctx.beginPath(); ctx.moveTo(this.x + i, this.y - this.radius); ctx.lineTo(this.x + i, this.y + this.radius); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(this.x - this.radius, this.y + i); ctx.lineTo(this.x + this.radius, this.y + i); ctx.stroke();
+            }
         }
-        
         ctx.restore();
 
-        // RESONANCE RING (Orbiting Data Bits)
-        ctx.save();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = this.isHit ? '#fff' : this.color + '88';
-        ctx.setLineDash([15, 20]);
-        ctx.lineDashOffset = -frame * (1 + this.progress * 2);
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius * 0.75, 0, Math.PI * 2); ctx.stroke();
-        ctx.restore();
+        // 5. TACTICAL TELEMETRY (Internal Readout)
+        if (this.progress > 0) {
+            ctx.save();
+            ctx.fillStyle = '#fff'; 
+            ctx.font = 'bold 16px monospace'; 
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.shadowBlur = 10; ctx.shadowColor = '#fff';
+            ctx.globalAlpha = 0.4 + this.progress * 0.6;
+            
+            const pct = Math.floor(this.progress * 100);
+            ctx.fillText(`${pct}%`, this.x, this.y);
+            ctx.restore();
+        }
+
+        // PHYSICAL CORE BORDER (Inner Frame)
+        ctx.strokeStyle = this.isHit ? '#fff' : this.color + '66';
+        ctx.lineWidth = this.isHit ? 4 : 2;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.stroke();
         
         ctx.restore();
     }
