@@ -44,9 +44,16 @@ export class Emitter {
         this.beamSegments = [];
     }
     draw(ctx) {
-        ctx.save(); ctx.shadowBlur = 25; ctx.shadowColor = this.color; ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.rect(this.x - 14, this.y - 14, 28, 28); ctx.fill();
-        ctx.strokeStyle = this.color; ctx.lineWidth = 4; ctx.stroke(); ctx.restore();
+        ctx.save(); 
+        // OUTER CORONA
+        ctx.shadowBlur = 35; ctx.shadowColor = this.color; 
+        ctx.strokeStyle = this.color; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.strokeRect(this.x - 14, this.y - 14, 28, 28);
+        
+        // IONIZED CORE
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.fillRect(this.x - 8, this.y - 8, 16, 16);
+        ctx.restore();
     }
 }
 
@@ -165,14 +172,16 @@ export class Mirror {
         ctx.strokeStyle = '#444'; ctx.lineWidth = 8;
         ctx.beginPath(); ctx.moveTo(this.x - mx, this.y - my); ctx.lineTo(this.x + mx, this.y + my); ctx.stroke();
 
-        // Energy Core
+        // Energy Core (Wavelength Specific)
         ctx.strokeStyle = this.isHit ? glowColor : COLORS.SOLAR; 
-        ctx.lineWidth = this.isHit ? 6 : 4;
+        ctx.lineWidth = this.isHit ? 8 : 4;
         ctx.beginPath(); ctx.moveTo(this.x - mx, this.y - my); ctx.lineTo(this.x + mx, this.y + my); ctx.stroke();
         
-        // Inner Bright Wire
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(this.x - mx, this.y - my); ctx.lineTo(this.x + mx, this.y + my); ctx.stroke();
+        // Inner Photon Flow (White Hot-Spot)
+        if (this.isHit) {
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.moveTo(this.x - mx, this.y - my); ctx.lineTo(this.x + mx, this.y + my); ctx.stroke();
+        }
 
         // End Caps (Hardware Detail) - Polished Milled Aluminum Look
         ctx.fillStyle = '#333'; ctx.strokeStyle = '#666'; ctx.lineWidth = 1;

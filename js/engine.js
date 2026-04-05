@@ -381,12 +381,74 @@ export class LuminaEngine {
         if (this.gameState !== 'FAIL_SCREEN') {
             this.emitters.forEach(e => {
                 if (e.beamSegments.length < 2) return;
-                this.ctx.save(); this.ctx.shadowBlur = 25; this.ctx.shadowColor = e.color;
-                this.ctx.strokeStyle = e.color; this.ctx.lineWidth = 4 + Math.sin(this.frame / 5);
-                this.ctx.setLineDash([35, 20]); this.ctx.lineDashOffset = -this.frame * 6;
-                this.ctx.beginPath(); this.ctx.moveTo(e.beamSegments[0].x, e.beamSegments[0].y);
-                for (let i = 1; i < e.beamSegments.length; i++) this.ctx.lineTo(e.beamSegments[i].x, e.beamSegments[i].y);
-                this.ctx.stroke(); this.ctx.restore();
+                
+                const framePulse = Math.sin(this.frame / 5) * 1.5;
+                const flicker = Math.sin(this.frame * 0.5) * 0.4; 
+                const dashPattern = [25, 20]; // Shorter, denser pulses
+                const dashOffset = -this.frame * 2.8; 
+                
+                // PASS 1: THE CORONA (Atmospheric Aura)
+                this.ctx.save();
+                this.ctx.globalAlpha = 0.35;
+                this.ctx.shadowBlur = 35 + framePulse + flicker;
+                this.ctx.shadowColor = e.color;
+                this.ctx.strokeStyle = e.color;
+                this.ctx.lineWidth = 12 + framePulse + flicker;
+                this.ctx.lineCap = 'round';
+                this.ctx.setLineDash(dashPattern);
+                this.ctx.lineDashOffset = dashOffset;
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(e.beamSegments[0].x, e.beamSegments[0].y);
+                for (let i = 1; i < e.beamSegments.length; i++) {
+                    const jitterX = (Math.random() - 0.5) * 0.6;
+                    const jitterY = (Math.random() - 0.5) * 0.6;
+                    this.ctx.lineTo(e.beamSegments[i].x + jitterX, e.beamSegments[i].y + jitterY);
+                }
+                this.ctx.stroke();
+                this.ctx.restore();
+
+                // PASS 2: THE PLASMA CORE (Spectral Wavelength)
+                this.ctx.save();
+                this.ctx.strokeStyle = e.color;
+                this.ctx.lineWidth = 4.5 + flicker * 0.3;
+                this.ctx.lineCap = 'round';
+                this.ctx.setLineDash(dashPattern);
+                this.ctx.lineDashOffset = dashOffset;
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(e.beamSegments[0].x, e.beamSegments[0].y);
+                for (let i = 1; i < e.beamSegments.length; i++) {
+                    this.ctx.lineTo(e.beamSegments[i].x, e.beamSegments[i].y);
+                }
+                this.ctx.stroke();
+                this.ctx.restore();
+
+                // PASS 3: THE PHOTON SPARK (High-Intensity Center)
+                this.ctx.save();
+                this.ctx.strokeStyle = '#fff';
+                this.ctx.lineWidth = 1.5;
+                this.ctx.lineCap = 'round';
+                this.ctx.setLineDash(dashPattern);
+                this.ctx.lineDashOffset = dashOffset;
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(e.beamSegments[0].x, e.beamSegments[0].y);
+                for (let i = 1; i < e.beamSegments.length; i++) {
+                    this.ctx.lineTo(e.beamSegments[i].x, e.beamSegments[i].y);
+                }
+                this.ctx.stroke();
+                this.ctx.restore();
+
+                // ATMOSPHERIC IONIZATION (Refined Sparks)
+                if (this.frame % 8 === 0) {
+                    const segIdx = Math.floor(Math.random() * (e.beamSegments.length - 1));
+                    const s = e.beamSegments[segIdx]; const end = e.beamSegments[segIdx + 1];
+                    const t = Math.random();
+                    const px = s.x + (end.x - s.x) * t;
+                    const py = s.y + (end.y - s.y) * t;
+                    this.createShards(px, py, 1, Math.random() > 0.4 ? e.color : '#fff', 2 + Math.random() * 3);
+                }
             });
         }
 
