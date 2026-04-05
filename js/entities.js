@@ -43,16 +43,56 @@ export class Emitter {
         this.x = x; this.y = y; this.color = color;
         this.beamSegments = [];
     }
-    draw(ctx) {
+    draw(ctx, frame = 0) {
         ctx.save(); 
-        // OUTER CORONA
-        ctx.shadowBlur = 35; ctx.shadowColor = this.color; 
-        ctx.strokeStyle = this.color; ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.strokeRect(this.x - 14, this.y - 14, 28, 28);
         
-        // IONIZED CORE
+        const pulse = Math.sin(frame / 6) * 0.2;
+        const size = 22; // Increased from 16
+        
+        // 1. HARDWARE SHROUD (Octagonal Frame)
+        ctx.strokeStyle = '#222'; ctx.lineWidth = 12;
+        ctx.beginPath();
+        [0, 1, 2, 3].forEach(i => {
+            const angle = i * Math.PI / 2;
+            const x1 = this.x + Math.cos(angle - 0.5) * size;
+            const y1 = this.y + Math.sin(angle - 0.5) * size;
+            const x2 = this.x + Math.cos(angle + 0.5) * size;
+            const y2 = this.y + Math.sin(angle + 0.5) * size;
+            if (i === 0) ctx.moveTo(x1, y1); else ctx.lineTo(x1, y1);
+            ctx.lineTo(x2, y2);
+        });
+        ctx.closePath(); ctx.stroke();
+        
+        ctx.strokeStyle = '#444'; ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // 2. MAGNETIC PULSE BRACKETS (Shimmering Corners)
+        ctx.save();
+        ctx.strokeStyle = this.color; ctx.lineWidth = 3;
+        ctx.shadowBlur = 15 + pulse * 20; ctx.shadowColor = this.color;
+        [ -1, 1 ].forEach(sx => {
+            [ -1, 1 ].forEach(sy => {
+                const px = this.x + sx * 26; const py = this.y + sy * 26; // Increased from 18
+                ctx.save(); ctx.translate(px, py); ctx.rotate(pulse * 0.2);
+                ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(0, 0); ctx.lineTo(0, -8); ctx.stroke();
+                ctx.restore();
+            });
+        });
+        ctx.restore();
+        
+        // 3. IONIZED RADIANT CORE (Pulsing Energy Lens)
+        const coreSize = 14 + pulse * 6; // Increased from 10
+        const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, coreSize);
+        grad.addColorStop(0, '#fff'); grad.addColorStop(0.4, this.color); grad.addColorStop(1, 'transparent');
+        
+        ctx.shadowBlur = 30 + pulse * 15; ctx.shadowColor = this.color;
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(this.x, this.y, coreSize, 0, Math.PI * 2); ctx.fill();
+        
+        // 4. SIGNAL APERTURE (White Center Point)
         ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.fillRect(this.x - 8, this.y - 8, 16, 16);
+        ctx.beginPath(); ctx.arc(this.x, this.y, 5, 0, Math.PI * 2); ctx.fill();
+
         ctx.restore();
     }
 }

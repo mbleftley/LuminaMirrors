@@ -453,7 +453,7 @@ export class LuminaEngine {
         }
 
         this.mirrors.forEach(m => m.draw(this.ctx, this.frame));
-        this.emitters.forEach(e => e.draw(this.ctx));
+        this.emitters.forEach(e => e.draw(this.ctx, this.frame));
         this.shards.forEach(p => p.draw(this.ctx));
     }
 
