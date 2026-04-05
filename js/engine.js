@@ -189,8 +189,9 @@ export class LuminaEngine {
 
         const oCount = Math.min(8, this.level + 1); // v11.0: Advanced Scaling (Start-2, Max-8)
         for (let i = 0; i < oCount; i++) {
-            // ROLE DIFFERENTIATION (v11.0)
-            const type = (i === 0) ? 'VOID' : (Math.random() < 0.4 ? 'BOMB' : 'VOID');
+            // ROLE DIFFERENTIATION (v12.0: Guaranteed Lethality)
+            let type = (i === 0) ? 'VOID' : (Math.random() < 0.6 ? 'BOMB' : 'VOID');
+            if (this.level >= 2 && i === 1) type = 'BOMB'; // Ensure at least 1 bomb from L2+
             const radius = type === 'BOMB' ? (30 + Math.random() * 35) : (35 + Math.random() * 50);
             
             let ox, oy, attempts = 0, isValid = false;
