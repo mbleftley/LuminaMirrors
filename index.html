@@ -112,9 +112,9 @@
             transition: 0.15s linear;
         }
 
-        #dock-hud {
+        #forge-hud {
             position: absolute;
-            bottom: 125px;
+            bottom: 30px; 
             left: 50%;
             transform: translateX(-50%);
             display: flex;
@@ -126,14 +126,32 @@
             text-transform: uppercase;
             letter-spacing: 2px;
             color: var(--accent);
-            text-shadow: 0 0 10px rgba(255, 207, 51, 0.3);
+            text-shadow: 0 0 10px rgba(255, 207, 51, 0.4);
+            font-size: 0.7rem;
+            font-weight: 700;
         }
 
-        #dock-hud .val {
-            font-size: 1.4rem;
+        #forge-hud .val {
+            font-size: 1.2rem;
             color: #fff;
             text-shadow: 0 0 15px #fff;
             font-weight: 800;
+            margin-top: 5px;
+        }
+
+        #forge-hint {
+            position: absolute;
+            bottom: 175px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            font-weight: 500;
+            opacity: 0;
+            transition: opacity 1s ease;
+            pointer-events: none;
+            text-shadow: none;
         }
 
         /* OVERLAYS */
@@ -345,9 +363,12 @@
                     id="timer-val">00.00s</span></div>
         </div>
 
-        <div id="dock-hud">
-            <div class="hud-panel" style="border: none; background: none; box-shadow: none;">REFLECTOR_STORAGE<br><span class="val" id="dock-val">0 / 0</span></div>
+        <div id="forge-hud">
+            Reflectors Active
+            <div class="val" id="forge-val">0</div>
         </div>
+
+        <div id="forge-hint">Drag from here to forge a reflector</div>
 
         <!-- NEW SCORE HUD -->
         <div id="score-hud" class="hud" style="top: auto; bottom: 0; padding: 15px 25px;">
@@ -629,7 +650,7 @@
                 this.gameState = 'PLAYING';
                 document.getElementById('start-menu').style.display = 'none';
                 document.getElementById('main-hud').style.opacity = '1';
-                document.getElementById('dock-hud').style.opacity = '1';
+                document.getElementById('forge-hud').style.opacity = '1';
                 this.createLevel();
             }
 
@@ -639,33 +660,33 @@
                 this.cores.forEach(c => c.progress = 0);
                 document.getElementById('level-complete').style.display = 'none';
                 document.getElementById('game-over').style.display = 'none';
+
+                // Onboarding Hint Initialization
+                const hint = document.getElementById('forge-hint');
+                if (this.level === 1) hint.style.opacity = '1';
+                else hint.style.opacity = '0';
                 levelNumDisplay.textContent = this.level;
                 this.particles = []; this.mirrors = []; this.obstacles = []; this.emitters = []; this.cores = [];
 
-                // Multi-Emitter Scaling
-                let emitterCount = 1;
-                if (this.level >= 8) emitterCount = 3;
-                else if (this.level >= 5) emitterCount = 2;
-                const spacing = this.height / (emitterCount + 1);
+                const SAFE_ZONE_Y = this.height - 180;
+                const emitterCount = this.level >= 8 ? 3 : (this.level >= 5 ? 2 : 1);
+                const spacing = SAFE_ZONE_Y / (emitterCount + 1);
+
                 for (let i = 0; i < emitterCount; i++) {
                     const color = HARMONIC_PALETTE[i % HARMONIC_PALETTE.length];
-                    this.emitters.push(new Emitter(80, spacing * (i + 1), color));
+                    const ey = 80 + (spacing * (i + 1));
+                    this.emitters.push(new Emitter(80, ey, color));
                     
-                    let coreY = 100 + Math.random() * (this.height - 200);
-                    this.cores.push(new Core(this.width - 150, coreY, 65 - (emitterCount * 5), color));
+                    const cy = 100 + Math.random() * (SAFE_ZONE_Y - 200);
+                    this.cores.push(new Core(this.width - 150, cy, 65 - (emitterCount * 5), color));
+
+                    // STRATEGIC BLOCKER: Place a VOID directly in the line of fire
+                    const bx = (80 + (this.width - 150)) / 2 + (Math.random() - 0.5) * 50;
+                    const by = (ey + cy) / 2 + (Math.random() - 0.5) * 30;
+                    this.obstacles.push(new Obstacle(bx, by, 70, 'VOID'));
                 }
 
-                const mCount = 4 + Math.floor(this.level / 2);
-                const dockSpacing = Math.min(100, (this.width - 200) / mCount);
-                const dockStartX = (this.width - (mCount * dockSpacing)) / 2 + (dockSpacing / 2);
-                
-                this.dockSlots = [];
-                for (let i = 0; i < mCount; i++) {
-                    const sx = dockStartX + (i * dockSpacing);
-                    const sy = this.height - 65;
-                    this.dockSlots.push({ x: sx, y: sy });
-                    this.mirrors.push(new Mirror(i, sx, sy, Math.PI / 2, 100));
-                }
+                this.dockSlots = []; // Deprecated
 
                 // Rebuild HUD bars
                 syncBarsWrapper.innerHTML = '';
@@ -681,20 +702,19 @@
                     core.hudElement = inner;
                 });
 
-                const oCount = Math.floor(this.level / 2) + 1;
+                const oCount = Math.floor(this.level / 2);
                 for (let i = 0; i < oCount; i++) {
                     const type = Math.random() < 0.4 ? 'BOMB' : 'VOID';
                     let ox = 300 + Math.random() * (this.width - 600);
-                    let oy = 100 + Math.random() * (this.height - 200);
+                    let oy = 100 + Math.random() * (SAFE_ZONE_Y - 200);
                     
-                    // SAFETY CHECK: Ensure obstacles don't block the initial horizontal emitter paths
+                    // Improved Safety Check: Ensure random obstacles don't block the blockers or emitters too tightly
                     let attempts = 0;
-                    while (this.emitters.some(e => Math.abs(oy - e.y) < 75) && attempts < 20) {
-                        oy = 100 + Math.random() * (this.height - 200);
+                    while (this.emitters.some(e => Math.abs(oy - e.y) < 60) && attempts < 20) {
+                        oy = 100 + Math.random() * (SAFE_ZONE_Y - 200);
                         attempts++;
                     }
-                    
-                    this.obstacles.push(new Obstacle(ox, oy, type === 'BOMB' ? 40 : 70, type));
+                    this.obstacles.push(new Obstacle(ox, oy, type === 'BOMB' ? 40 : 60, type));
                 }
             }
 
@@ -721,10 +741,15 @@
 
                 if (allSaturated && this.cores.length > 0) this.triggerWin();
 
-                // Update HUD Displays
-                if (this.totalScoreDisplay) this.totalScoreDisplay.textContent = this.totalScore.toString().padStart(6, '0');
-                const inDockCount = this.mirrors.filter(m => m.inDock).length;
-                if (dockDisplay) dockDisplay.textContent = `${inDockCount} / ${this.mirrors.length}`;
+                // Update Forge HUD & Hint
+                const forgeDisplay = document.getElementById('forge-val');
+                if (forgeDisplay) forgeDisplay.textContent = this.mirrors.length.toString();
+                
+                const hint = document.getElementById('forge-hint');
+                if (hint) {
+                    const shouldShowHint = this.level === 1 && this.mirrors.length === 0;
+                    hint.style.opacity = shouldShowHint ? '1' : '0';
+                }
             }
 
             updateTimer() {
@@ -809,53 +834,18 @@
                 this.obstacles.forEach(o => o.draw(this.frame));
                 this.cores.forEach(c => c.draw(this.frame));
 
-                // Visual indicator for the dock area (High-Fidelity Console Overhaul)
+                // --- SOURCE REFLECTOR FORGE (Generator v6.1) ---
                 ctx.save();
-                ctx.translate(this.width / 2, this.height - 65);
-                
-                // Matte Glass Finish / Matte-Black Layer
-                const dockW = Math.min(this.width - 100, (this.mirrors.length * 100) + 60);
-                ctx.fillStyle = '#0a0a0a';
-                ctx.shadowBlur = 80; ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-                ctx.beginPath(); ctx.roundRect(-dockW/2, -60, dockW, 120, 15); ctx.fill();
-                
-                // Fine Technical Texture (Micro-Grid)
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)'; ctx.lineWidth = 0.5;
-                for(let x = -dockW/2; x < dockW/2; x += 10) {
-                    ctx.beginPath(); ctx.moveTo(x, -60); ctx.lineTo(x, 60); ctx.stroke();
-                }
-                for(let y = -60; y < 60; y += 10) {
-                    ctx.beginPath(); ctx.moveTo(-dockW/2, y); ctx.lineTo(dockW/2, y); ctx.stroke();
-                }
+                const sx = this.width / 2; const sy = this.height - 110;
 
-                // Glowing Edge Highlight (Top Wireframe)
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1;
-                ctx.beginPath(); ctx.moveTo(-dockW/2, -60); ctx.lineTo(dockW/2, -60); ctx.stroke();
+                // Source Mirror Pulse Effect
+                const sPulse = 1 + Math.sin(this.frame / 10) * 0.2;
+                ctx.globalAlpha = 0.3 * sPulse;
+                ctx.shadowBlur = 40 * sPulse; ctx.shadowColor = COLORS.SOLAR;
                 
-                // Inset Bevel Detail
-                ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 4;
-                ctx.strokeRect(-dockW/2 + 2, -58, dockW - 4, 116);
-
-                // Draw Sockets & Contacts
-                ctx.setTransform(1, 0, 0, 1, 0, 0);
-                this.dockSlots.forEach(slot => {
-                    // Recessed Socket Base (Shadow Depth)
-                    ctx.fillStyle = '#000';
-                    ctx.fillRect(slot.x - 20, slot.y + 30, 40, 12);
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)'; ctx.lineWidth = 1;
-                    ctx.strokeRect(slot.x - 20, slot.y + 30, 40, 12);
-                    
-                    // Ghost Slot (Electrical Contact Light - Low Profile)
-                    const isOccupied = this.mirrors.some(m => m.inDock && m.x === slot.x);
-                    if (!isOccupied) {
-                        ctx.save();
-                        ctx.shadowBlur = 5; ctx.shadowColor = COLORS.SOLAR;
-                        ctx.strokeStyle = `rgba(255, 207, 51, ${0.05 + Math.sin(this.frame / 12) * 0.03})`;
-                        ctx.lineWidth = 1.5; ctx.setLineDash([4, 12]);
-                        ctx.beginPath(); ctx.moveTo(slot.x, slot.y - 40); ctx.lineTo(slot.x, slot.y + 40); ctx.stroke();
-                        ctx.restore();
-                    }
-                });
+                // Draw a "Ghost" of the mirror as the Forge UI
+                const tempMirror = new Mirror(999, sx, sy, 0, 100);
+                tempMirror.draw(this.frame);
                 ctx.restore();
 
                 if (this.gameState !== 'FAIL_SCREEN') {
@@ -879,11 +869,16 @@
                 if (this.gameState !== 'PLAYING') return;
                 this.gameState = 'WINNING'; this.playSweep(true);
                 
-                const mirrorCount = this.uniqueMirrorsHit.size;
-                const timeBonus = Math.max(0, Math.floor(10000 - (this.timeInLevel * 100)));
-                const reflectorBonus = mirrorCount * 500;
-                const levelScore = reflectorBonus + timeBonus;
+                const mirrorCount = this.mirrors.length;
+                const baseScore = 10000;
+                const timePenalty = Math.floor(this.timeInLevel * 100);
+                const efficiencyPenalty = mirrorCount * 1000;
+                const precisionBonus = Math.max(0, 5000 - (this.uniqueMirrorsHit.size * 500));
+                
+                const levelScore = Math.max(500, baseScore - timePenalty - efficiencyPenalty + precisionBonus);
                 this.totalScore += levelScore;
+
+                this.uniqueMirrorsHit.clear();
 
                 this.cores.forEach(c => this.createShards(c.x, c.y, 40, c.color, 25, 0.02));
                 
@@ -921,16 +916,30 @@
 
             onPointerStart(e) {
                 if (this.gameState !== 'PLAYING') return;
-                const x = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-                const y = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+                const rect = canvas.getBoundingClientRect();
+                const x = (e.clientX || (e.touches ? e.touches[0].clientX : 0)) - rect.left;
+                const y = (e.clientY || (e.touches ? e.touches[0].clientY : 0)) - rect.top;
+                
+                // CLICK ON FUSION CORE (Spontaneous Forging)
+                const distToCore = Math.hypot(x - this.width / 2, y - (this.height - 110));
+                if (distToCore < 60) {
+                    const newMirror = new Mirror(Date.now(), this.width / 2, this.height - 110, 0, 100);
+                    newMirror.inDock = false;
+                    this.mirrors.push(newMirror);
+                    this.isDragging = newMirror;
+                    this.playPing("E5");
+                    return;
+                }
+
                 this.isDragging = this.mirrors.find(m => Math.hypot(m.x - x, m.y - y) < 60);
                 if (this.isDragging) this.isDragging.isMoved = false;
             }
 
             onPointerMove(e) {
                 if (!this.isDragging || this.gameState !== 'PLAYING') return;
-                const x = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-                const y = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+                const rect = canvas.getBoundingClientRect();
+                const x = (e.clientX || (e.touches ? e.touches[0].clientX : 0)) - rect.left;
+                const y = (e.clientY || (e.touches ? e.touches[0].clientY : 0)) - rect.top;
                 this.isDragging.x = x; this.isDragging.y = y; this.isDragging.isMoved = true;
             }
 
@@ -940,32 +949,14 @@
                         this.isDragging.angle += Math.PI / 4;
                         this.playPing("D4");
                     }
-                    // Docking logic (Power Slot Snapping)
-                    if (this.isDragging.y > this.height - 130) {
-                        // Find nearest empty slot
-                        let closestSlot = null;
-                        let minDist = 150;
-                        this.dockSlots.forEach(slot => {
-                            const isOccupied = this.mirrors.some(m => m !== this.isDragging && m.inDock && m.x === slot.x);
-                            if (!isOccupied) {
-                                const d = Math.hypot(this.isDragging.x - slot.x, this.isDragging.y - slot.y);
-                                if (d < minDist) { minDist = d; closestSlot = slot; }
-                            }
-                        });
-
-                        if (closestSlot) {
-                            this.isDragging.inDock = true;
-                            this.isDragging.x = closestSlot.x;
-                            this.isDragging.y = closestSlot.y;
-                            this.isDragging.angle = Math.PI / 2; // Return to upright
-                        } else {
-                            this.isDragging.inDock = false;
-                        }
-                    } else {
-                        this.isDragging.inDock = false;
+                    const distToCore = Math.hypot(this.isDragging.x - this.width / 2, this.isDragging.y - (this.height - 110));
+                    if (distToCore < 80) {
+                        // RECYCLE UNIT
+                        this.mirrors = this.mirrors.filter(m => m !== this.isDragging);
+                        this.playPing("A3");
                     }
+                    this.isDragging = null;
                 }
-                this.isDragging = null;
             }
 
             loop() {
