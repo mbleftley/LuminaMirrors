@@ -166,7 +166,7 @@ export class LuminaEngine {
         this.shards = []; this.mirrors = []; this.obstacles = []; this.emitters = []; this.cores = [];
 
         const SAFE_ZONE_Y = this.height - 180;
-        const emitterCount = this.level >= 8 ? 3 : (this.level >= 3 ? 2 : 1);
+        const emitterCount = this.level >= 11 ? 3 : (this.level >= 6 ? 2 : 1);
         const spacing = SAFE_ZONE_Y / (emitterCount + 1);
 
         for (let i = 0; i < emitterCount; i++) {
@@ -174,24 +174,35 @@ export class LuminaEngine {
             const ey = 80 + (spacing * (i + 1)) + (Math.random() - 0.5) * 50;
             this.emitters.push(new Emitter(80, ey, color));
 
-            // SPATIAL HARMONY RECALIBRATION (v11.0 No-Overlap)
             let cx, cy, attempts = 0;
             do {
                 cx = this.width - 150 - Math.random() * (this.width / 3);
                 cy = 100 + Math.random() * (SAFE_ZONE_Y - 200);
                 attempts++;
-            } while (!this.isSafe(cx, cy, 60, 60) && attempts < 50);
+                // v13.2: Prevent self-solving levels (Ensure Y-offset from emitter)
+                const yOffset = Math.abs(cy - ey) > 80;
+                if (this.isSafe(cx, cy, 60, 60) && yOffset) break;
+            } while (attempts < 50);
 
             this.cores.push(new Core(cx, cy, 65 - (emitterCount * 5), color));
 
         }
 
 
-        const oCount = Math.min(8, this.level + 1); // v11.0: Advanced Scaling (Start-2, Max-8)
+        // --- LINEAR ONBOARDING (v13.0) ---
+        // L1: Empty, L2: Void Only, L3: Void + Bomb, L4+: Scaling
+        const oCount = (this.level === 1) ? 0 : (this.level === 2 ? 1 : Math.min(8, this.level - 1));
+        
         for (let i = 0; i < oCount; i++) {
-            // ROLE DIFFERENTIATION (v12.0: Guaranteed Lethality)
-            let type = (i === 0) ? 'VOID' : (Math.random() < 0.6 ? 'BOMB' : 'VOID');
-            if (this.level >= 2 && i === 1) type = 'BOMB'; // Ensure at least 1 bomb from L2+
+            // ROLE DIFFERENTIATION (v13.0 Fixed Intro)
+            let type = 'VOID';
+            if (this.level === 3) {
+                type = (i === 1) ? 'BOMB' : 'VOID';
+            } else if (this.level > 3) {
+                type = (i === 0) ? 'VOID' : (Math.random() < 0.6 ? 'BOMB' : 'VOID');
+                if (i === 1) type = 'BOMB'; // Ensure at least 1 bomb
+            }
+            
             const radius = type === 'BOMB' ? (30 + Math.random() * 35) : (35 + Math.random() * 50);
             
             let ox, oy, attempts = 0, isValid = false;
