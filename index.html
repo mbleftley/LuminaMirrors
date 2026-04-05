@@ -523,6 +523,7 @@
                 this.isMoved = false;
                 this.inDock = true;
                 this.isHit = false;
+                this.wasHit = false;
                 this.hitColor = '#fff';
             }
             draw(frame) {
@@ -594,7 +595,10 @@
                 this.totalScoreDisplay = document.getElementById('total-score-val');
                 
                 // Audio
-                this.fmSynth = null; this.drone = null; this.reverb = null; this.lastPingTime = 0;
+                this.fmSynth = null; this.drone = null; this.reverb = null; 
+                this.syncOsc = null; this.syncFilter = null;
+                this.thrumSynth = null; this.clickSynth = null;
+                this.lastPingTime = 0;
                 
                 this.resize();
                 window.addEventListener('resize', () => this.resize());
@@ -610,12 +614,35 @@
 
             initAudio() {
                 if (this.fmSynth) return;
-                this.reverb = new Tone.Reverb(2).toDestination();
+                this.reverb = new Tone.Reverb({ decay: 2.5, wet: 0.4 }).toDestination();
                 this.fmSynth = new Tone.PolySynth(Tone.FMSynth, {
                     harmonicity: 3.5, envelope: { attack: 0.005, decay: 0.2, sustain: 0, release: 0.4 }
                 }).connect(this.reverb);
-                this.drone = new Tone.Oscillator(50, "sine").toDestination();
+                
+                this.drone = new Tone.Oscillator(40, "sine").toDestination();
                 this.drone.volume.value = -55; this.drone.start();
+
+                // CORE RESONANCE ENGINE (v7.2 Pleasant Shimmer)
+                this.syncFilter = new Tone.Filter({
+                    frequency: 1500, type: "lowpass", rollover: -24
+                }).toDestination();
+                this.syncOsc = new Tone.FatOscillator({
+                    frequency: 220, type: "triangle", count: 12, spread: 60
+                }).connect(this.syncFilter);
+                this.syncOsc.volume.value = -Infinity;
+                this.syncOsc.start();
+
+                // TACTILE FEEDBACK SYNTHS (v7.4 Digital Shimmer)
+                this.thrumSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.2 }
+                }).connect(this.reverb);
+                this.thrumSynth.volume.value = -12;
+
+                this.clickSynth = new Tone.NoiseSynth({
+                    noise: { type: "white" }, envelope: { attack: 0.001, decay: 0.06, release: 0.06 }
+                }).connect(this.reverb);
+                this.clickSynth.volume.value = -8;
             }
 
             playPing(freq = "C5") {
@@ -733,13 +760,37 @@
                 this.updateOptics();
                 
                 let allSaturated = true;
+                let maxProgress = 0;
+                let anyCoreHit = false;
+
                 this.cores.forEach(c => {
                     c.update(0.007);
                     if (c.progress < 1) allSaturated = false;
+                    if (c.isHit) {
+                        anyCoreHit = true;
+                        maxProgress = Math.max(maxProgress, c.progress);
+                    }
                     if (c.hudElement) c.hudElement.style.width = (c.progress * 100) + "%";
                 });
 
-                if (allSaturated && this.cores.length > 0) this.triggerWin();
+                // Update Sync Audio Intensity (v7.2 Harmonic Shimmer)
+                if (this.syncOsc && this.syncFilter) {
+                    if (anyCoreHit) {
+                        const freq = 220 + (maxProgress * 110); // A3 to E4
+                        const filter = 1500 + (maxProgress * 6000); 
+                        const vol = -18 + (maxProgress * 8); // -18dB to -10dB
+                        this.syncOsc.frequency.rampTo(freq, 0.1);
+                        this.syncFilter.frequency.rampTo(filter, 0.1);
+                        this.syncOsc.volume.rampTo(vol, 0.1);
+                    } else {
+                        this.syncOsc.volume.rampTo(-Infinity, 0.2);
+                    }
+                }
+
+                if (allSaturated && this.cores.length > 0) {
+                    if (this.syncOsc) this.syncOsc.volume.rampTo(-Infinity, 0.4);
+                    this.triggerWin();
+                }
 
                 // Update Forge HUD & Hint
                 const forgeDisplay = document.getElementById('forge-val');
@@ -759,7 +810,10 @@
 
             updateOptics() {
                 this.cores.forEach(c => c.isHit = false);
-                this.mirrors.forEach(m => m.isHit = false);
+                this.mirrors.forEach(m => {
+                    m.wasHit = m.isHit; 
+                    m.isHit = false;
+                });
                 this.uniqueMirrorsHit.clear();
 
                 this.emitters.forEach(emitter => {
@@ -809,9 +863,16 @@
                         if (closestHit) {
                             emitter.beamSegments.push({ x: closestHit.x, y: closestHit.y });
                             if (closestHit.type === 'MIRROR') {
-                                this.uniqueMirrorsHit.add(closestHit.mirror.id);
+                                // Universal Reflectors (v6.9): Mirrors adopt beam color
                                 closestHit.mirror.isHit = true;
                                 closestHit.mirror.hitColor = emitter.color;
+                                
+                                // Tactile Beam Intercept (v7.4 Digital Shimmer)
+                                if (!closestHit.mirror.wasHit && this.thrumSynth) {
+                                    this.thrumSynth.triggerAttackRelease(["C6", "E6", "G6"], "16n");
+                                }
+                                
+                                this.uniqueMirrorsHit.add(closestHit.mirror.id);
                                 curX = closestHit.x; curY = closestHit.y;
                                 curAngle = 2 * closestHit.mirror.angle - curAngle;
                                 if (this.frame % 8 === 0) this.createShards(curX, curY, 1, COLORS.TEXT, 5);
@@ -927,7 +988,7 @@
                     newMirror.inDock = false;
                     this.mirrors.push(newMirror);
                     this.isDragging = newMirror;
-                    this.playPing("E5");
+                    if (this.clickSynth) this.clickSynth.triggerAttackRelease("16n");
                     return;
                 }
 
@@ -947,13 +1008,13 @@
                 if (this.isDragging) {
                     if (!this.isDragging.isMoved) { 
                         this.isDragging.angle += Math.PI / 4;
-                        this.playPing("D4");
+                        if (this.clickSynth) this.clickSynth.triggerAttackRelease("32n");
                     }
                     const distToCore = Math.hypot(this.isDragging.x - this.width / 2, this.isDragging.y - (this.height - 110));
                     if (distToCore < 80) {
                         // RECYCLE UNIT
                         this.mirrors = this.mirrors.filter(m => m !== this.isDragging);
-                        this.playPing("A3");
+                        if (this.clickSynth) this.clickSynth.triggerAttackRelease("16n");
                     }
                     this.isDragging = null;
                 }
