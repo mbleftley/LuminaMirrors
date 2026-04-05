@@ -457,19 +457,40 @@
 
         // --- ENTITIES ---
         class Shard {
-            constructor(x, y, vx, vy, color, lifeDecay = 0.03) {
-                this.x = x; this.y = y; this.vx = vx; this.vy = vy;
-                this.color = color; this.life = 1.0; this.decay = lifeDecay;
-                this.size = Math.random() * 6 + 2;
+            constructor(x, y, color, speed, type = 'SHARD') {
+                this.x = x; this.y = y; this.color = color;
+                const angle = Math.random() * Math.PI * 2;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.life = 1.0; this.decay = 0.01 + Math.random() * 0.02;
+                this.type = type; // 'SHARD', 'EMBER', 'SHOCK'
+                this.size = type === 'SHOCK' ? 10 : (1 + Math.random() * 3);
+                this.friction = type === 'EMBER' ? 0.95 : 0.98;
             }
-            update() { this.x += this.vx; this.y += this.vy; this.life -= this.decay; }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                this.vx *= this.friction; this.vy *= this.friction;
+                this.life -= this.decay;
+                if (this.type === 'SHOCK') this.size += 15;
+            }
             draw() {
-                const speed = Math.hypot(this.vx, this.vy);
-                const angle = Math.atan2(this.vy, this.vx);
-                ctx.save(); ctx.globalAlpha = this.life; ctx.strokeStyle = this.color; ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.moveTo(this.x, this.y);
-                ctx.lineTo(this.x - Math.cos(angle) * speed * 2, this.y - Math.sin(angle) * speed * 2);
-                ctx.stroke(); ctx.restore();
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                
+                if (this.type === 'SHOCK') {
+                    ctx.strokeStyle = this.color; ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.stroke();
+                } else if (this.type === 'EMBER') {
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+                } else {
+                    // STREAK / SHARD (White-hot to color)
+                    const grad = ctx.createLinearGradient(this.x, this.y, this.x - this.vx * 2, this.y - this.vy * 2);
+                    grad.addColorStop(0, '#fff'); grad.addColorStop(1, this.color);
+                    ctx.strokeStyle = grad; ctx.lineWidth = this.size;
+                    ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x - this.vx * 2, this.y - this.vy * 2); ctx.stroke();
+                }
+                ctx.restore();
             }
         }
 
@@ -590,7 +611,7 @@
                 this.dockSlots = [];
                 this.gameState = 'MENU';
                 this.width = window.innerWidth; this.height = window.innerHeight;
-                this.emitters = []; this.cores = []; this.mirrors = []; this.obstacles = []; this.particles = [];
+                this.emitters = []; this.cores = []; this.mirrors = []; this.obstacles = []; this.shards = [];
                 this.isDragging = null;
                 this.totalScoreDisplay = document.getElementById('total-score-val');
                 
@@ -657,10 +678,24 @@
                 }
             }
 
-            createShards(x, y, count, color, spread = 8, decay = 0.03) {
+            createShards(x, y, count = 10, color = COLORS.TEXT, speed = 8) {
                 for (let i = 0; i < count; i++) {
-                    const vx = (Math.random() - 0.5) * spread; const vy = (Math.random() - 0.5) * spread;
-                    this.particles.push(new Shard(x, y, vx, vy, color, decay));
+                    this.shards.push(new Shard(x, y, color, speed, 'SHARD'));
+                }
+            }
+
+            explode(x, y, color = COLORS.DANGER) {
+                // SHOCKWAVE (Inner Glow Ring)
+                this.shards.push(new Shard(x, y, color, 0, 'SHOCK'));
+                
+                // SHRAPNEL (Fast Streak Shards)
+                for (let i = 0; i < 30; i++) {
+                    this.shards.push(new Shard(x, y, color, 12 + Math.random() * 10, 'SHARD'));
+                }
+                
+                // EMBERS (Glowing Smoke Clouds)
+                for (let i = 0; i < 40; i++) {
+                    this.shards.push(new Shard(x, y, color, 2 + Math.random() * 8, 'EMBER'));
                 }
             }
 
@@ -745,11 +780,9 @@
             update() {
                 this.frame++;
 
-                // Update particles in all active states (Winning/Failing/Playing)
-                this.particles.forEach((p, i) => {
-                    p.update();
-                    if (p.life <= 0) this.particles.splice(i, 1);
-                });
+                // Stable Particle Cleanup (v8.4)
+                this.shards.forEach(p => p.update());
+                this.shards = this.shards.filter(p => p.life > 0);
 
                 if (this.gameState !== 'PLAYING') return;
 
@@ -872,7 +905,11 @@
                                 curAngle = 2 * closestHit.mirror.angle - curAngle;
                                 if (this.frame % 8 === 0) this.createShards(curX, curY, 1, COLORS.TEXT, 5);
                             } else if (closestHit.type === 'OBSTACLE') {
-                                if (closestHit.obs.type === 'BOMB') this.triggerGameOver("CRITICAL BOMB BREACH");
+                                if (closestHit.obs.type === 'BOMB') {
+                                    // ELITE BOMB DETONATION (v8.3)
+                                    this.explode(closestHit.obs.x, closestHit.obs.y, COLORS.DANGER);
+                                    this.triggerGameOver("CRITICAL BOMB BREACH");
+                                }
                                 break;
                             }
                         } else {
@@ -918,7 +955,7 @@
 
                 this.mirrors.forEach(m => m.draw(this.frame));
                 this.emitters.forEach(e => e.draw());
-                this.particles.forEach(p => p.draw());
+                this.shards.forEach(p => p.draw());
             }
 
             triggerWin() {
@@ -936,7 +973,7 @@
 
                 this.uniqueMirrorsHit.clear();
 
-                this.cores.forEach(c => this.createShards(c.x, c.y, 40, c.color, 25, 0.02));
+                this.cores.forEach(c => this.createShards(c.x, c.y, 40, c.color, 12));
                 
                 setTimeout(() => {
                     document.getElementById('level-stats').innerHTML = `
@@ -985,8 +1022,8 @@
                     this.isDragging = newMirror;
                     if (this.clickSynth) this.clickSynth.triggerAttackRelease("16n");
                     
-                    // FORGE SPARKS (v8.1)
-                    this.createShards(this.width / 2, this.height - 110, 15, COLORS.SOLAR, 12);
+                    // FORGE SPARKS (v8.6 Subtle)
+                    this.createShards(this.width / 2, this.height - 110, 8, COLORS.SOLAR, 6);
                     return;
                 }
 
@@ -1008,11 +1045,11 @@
                         this.isDragging.angle += Math.PI / 4;
                         if (this.clickSynth) this.clickSynth.triggerAttackRelease("32n");
                         
-                        // ROTATION SPARKS (v8.1) - Fly off the edges
+                        // ROTATION SPARKS (v8.6 Subtle) - Fly off the edges
                         const mx = Math.cos(this.isDragging.angle) * this.isDragging.length / 2;
                         const my = Math.sin(this.isDragging.angle) * this.isDragging.length / 2;
-                        this.createShards(this.isDragging.x + mx, this.isDragging.y + my, 5, COLORS.SOLAR, 10);
-                        this.createShards(this.isDragging.x - mx, this.isDragging.y - my, 5, COLORS.SOLAR, 10);
+                        this.createShards(this.isDragging.x + mx, this.isDragging.y + my, 3, COLORS.SOLAR, 5);
+                        this.createShards(this.isDragging.x - mx, this.isDragging.y - my, 3, COLORS.SOLAR, 5);
                     }
                     const distToCore = Math.hypot(this.isDragging.x - this.width / 2, this.isDragging.y - (this.height - 110));
                     if (distToCore < 80) {
