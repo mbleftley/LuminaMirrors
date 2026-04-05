@@ -22,14 +22,14 @@
         <div class="vibe-overlay"></div>
 
         <div class="hud" id="main-hud">
-            <div class="hud-panel">SIGNAL_L03<br><span class="val" id="level-num">1</span></div>
+            <div class="hud-panel">LEVEL<br><span class="val" id="level-num">1</span></div>
             <div id="sync-container">
                 <div class="hud-panel">BRIDGE_SATURATION</div>
                 <div id="sync-bars-wrapper">
                     <!-- Dynamic bars inserted here -->
                 </div>
             </div>
-            <div class="hud-panel" style="text-align: right;">ELAPSED_TIME<br><span class="val"
+            <div class="hud-panel" style="text-align: right;">DECODE_LATENCY<br><span class="val"
                     id="timer-val">00.00s</span></div>
         </div>
 
@@ -41,13 +41,13 @@
         <div id="forge-hint">Drag from here to forge a reflector</div>
 
         <div id="score-hud" class="hud" style="top: auto; bottom: 0; padding: 15px 25px;">
-             <div class="hud-panel">TOTAL_RESONANCE<br><span class="val" id="total-score-val">000000</span></div>
+             <div class="hud-panel">PHOTONS_CAPTURED<br><span class="val" id="total-score-val">0</span></div>
         </div>
 
         <div id="start-menu" class="overlay active">
             <div class="title">LUMINA</div>
-            <div class="stat">TACTICAL OPTICS | RESONANCE v3.2<br>GUIDE THE PLASMA FLOW | FILL THE CORE TO SYNC</div>
-            <button class="btn btn-pulse btn-shine" style="letter-spacing: 12px; font-weight: 700;" onclick="startGame()">START SIGNAL</button>
+            <div class="stat">TACTICAL OPTICS | RESONANCE v3.2<br>GUIDE THE PHOTON STREAM | CHARGE THE CORES TO DECODE</div>
+            <button class="btn btn-pulse btn-shine" onclick="startGame()">START SIGNAL</button>
 
             <div class="menu-divider"></div>
 
@@ -62,22 +62,37 @@
         </div>
 
         <div id="level-complete" class="overlay">
-            <div class="title" style="font-size: 4rem; letter-spacing: 15px;">DECODED</div>
-            <div class="stat" id="level-stats">
-                DECODE_TIME: <span style="color: var(--accent);">0.00s</span><br>
-                REFLECTORS_ACTIVE: <span style="color: var(--accent);">0</span><br>
-                SIGNAL_SCORE: <span style="color: var(--accent);">+0</span>
+            <div class="title" style="color: var(--accent); text-shadow: 0 0 30px var(--accent); font-size: 3.5rem; letter-spacing: 15px; margin-bottom: 10px;">SIGNAL_DECODED</div>
+            <div id="phase-info" style="font-family: var(--font-mono); color: rgba(255,255,255,0.4); letter-spacing: 8px; margin-bottom: 30px; font-size: 0.9rem; opacity: 0;">[PHASE_01_SUCCESS_CONFIRMED]</div>
+            
+            <div class="stat-grid">
+                <div class="stat-panel">SIGNAL_DECODE_TIME<br><span class="val" id="aar-time">0.00s</span></div>
+                <div class="stat-panel">HARDWARE_DEPLOYED<br><span class="val" id="aar-reflectors">00</span></div>
+                <div class="stat-panel">PHOTONS_HARVESTED<br><span class="val" id="aar-bonus">+0</span></div>
             </div>
-            <div class="stat" style="margin-top: -20px; font-size: 1rem; color: #fff;">
-                TOTAL_RESONANCE: <span id="complete-total-score">0</span>
+            <div class="stat" style="margin-bottom: 30px; text-align: center; opacity: 0; font-family: var(--font-mono);">
+                <span class="val" id="complete-total-score" style="display:block; font-size: 3.5rem; color: var(--gold); text-shadow: 0 0 30px var(--gold); font-family: var(--font-main); font-weight: 800; line-height: 0.9;">0</span>
+                <span style="font-size: 0.65rem; color: rgba(255, 255, 255, 0.4); letter-spacing: 6px; text-transform: uppercase;">TOTAL PHOTONS CAPTURED</span>
             </div>
-            <button class="btn btn-shine" onclick="nextLevel()">NEXT SIGNAL</button>
+            <button class="btn btn-shine" style="opacity: 0;" onclick="nextLevel()">NEXT SIGNAL</button>
         </div>
 
         <div id="game-over" class="overlay">
-            <div class="title" style="color: var(--danger); text-shadow: 0 0 30px var(--danger);">DISRUPTED</div>
-            <div class="stat" id="fail-reason">SINGULARITY COLLAPSE DETECTED<br>SIGNAL_INTEGRITY: 0%</div>
-            <button class="btn" onclick="location.reload()">RE-INITIATE</button>
+            <div class="stat" id="fail-reason" style="margin-bottom: 5px; opacity: 0; font-size: 0.6rem; letter-spacing: 5px; color: var(--danger); font-family: var(--font-mono);">[CRITICAL_BOMB_BREACH]</div>
+            <div class="title" style="color: var(--danger); text-shadow: 0 0 30px var(--danger); font-size: 3.5rem; letter-spacing: 15px; margin-bottom: 5px;">DISRUPTED</div>
+            <div id="fail-info" style="font-family: var(--font-mono); color: rgba(255,255,255,0.4); letter-spacing: 8px; margin-bottom: 35px; font-size: 0.8rem; opacity: 0;">PHASE_01_SIGNAL_LOSS</div>
+            
+            <div class="stat-grid" style="grid-template-columns: repeat(2, 1fr); width: 540px; margin-bottom: 40px;">
+                 <div class="stat-panel">LEVELS_DECODED<br><span class="val" id="aar-max-phase">00</span></div>
+                 <div class="stat-panel">REFLECTORS_USED<br><span class="val" id="aar-lost">00</span></div>
+            </div>
+
+            <div class="stat" style="margin-bottom: 40px; text-align: center; opacity: 0; font-family: var(--font-mono);">
+                <span class="val" id="aar-last-score" style="display:block; font-size: 3.8rem; color: var(--gold); text-shadow: 0 0 40px var(--gold); font-family: var(--font-main); font-weight: 800; line-height: 0.9;">0</span>
+                <span style="font-size: 0.6rem; color: rgba(255, 255, 255, 0.3); letter-spacing: 7px; text-transform: uppercase;">TOTAL PHOTONS CAPTURED</span>
+            </div>
+
+            <button class="btn btn-pulse btn-shine" style="opacity: 0;" onclick="location.reload()">REBOOT SYSTEM</button>
         </div>
 
         <canvas id="gameCanvas"></canvas>

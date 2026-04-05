@@ -18,6 +18,10 @@ export class LuminaEngine {
         this.isDragging = null;
         this.totalScoreDisplay = document.getElementById('total-score-val');
         
+        // Session Telemetry (v14.1)
+        this.totalReflectors = 0;
+        this.sessionStartTime = 0;
+        
         // Audio Sensors (v10.9 Hardened)
         this.fmSynth = null; this.drone = null; this.reverb = null; 
         this.pulseSynth = null; this.syncFilter = null; this.waterChorus = null;
@@ -114,6 +118,7 @@ export class LuminaEngine {
     startGame() {
         Tone.start(); Tone.context.resume(); this.initAudio();
         this.gameState = 'PLAYING';
+        this.sessionStartTime = Date.now(); // v14.1
         document.getElementById('start-menu').style.display = 'none';
         document.getElementById('main-hud').style.opacity = '1';
         document.getElementById('forge-hud').style.opacity = '1';
@@ -411,26 +416,57 @@ export class LuminaEngine {
         const mirrorCount = this.mirrors.length;
         const baseScore = 10000;
         const timePenalty = Math.floor(this.timeInLevel * 100);
-        const efficiencyPenalty = mirrorCount * 1000;
-        const precisionBonus = Math.max(0, 5000 - (this.uniqueMirrorsHit.size * 500));
         
-        const levelScore = Math.max(500, baseScore - timePenalty - efficiencyPenalty + precisionBonus);
+        // Tactical Metrics (v13.3)
+        const precisionBonus = Math.max(0, 5000 - (this.uniqueMirrorsHit.size * 200));
+        const levelScore = Math.max(500, baseScore - timePenalty + precisionBonus);
+        
         this.totalScore += levelScore;
-        this.totalScoreDisplay.textContent = this.totalScore.toString().padStart(6, '0');
+        this.totalScoreDisplay.textContent = this.totalScore.toLocaleString();
 
         this.uniqueMirrorsHit.clear();
         this.cores.forEach(c => this.createShards(c.x, c.y, 40, c.color, 12));
         
         setTimeout(() => {
-            document.getElementById('level-stats').innerHTML = `
-                DECODE_TIME: <span style="color: var(--accent);">${this.timeInLevel.toFixed(2)}s</span><br>
-                REFLECTORS_ACTIVE: <span style="color: var(--accent);">${mirrorCount}</span><br>
-                SIGNAL_SCORE: <span style="color: var(--accent);">+${levelScore}</span>
-            `;
-            document.getElementById('complete-total-score').textContent = this.totalScore;
-            document.getElementById('level-complete').style.display = 'flex';
+            document.getElementById('aar-time').textContent = this.timeInLevel.toFixed(2) + "s";
+            document.getElementById('aar-reflectors').textContent = mirrorCount.toString().padStart(2, '0');
+            document.getElementById('aar-bonus').textContent = "+" + levelScore.toLocaleString();
+            document.getElementById('complete-total-score').textContent = this.totalScore.toLocaleString();
+            
+            const phaseInfo = document.getElementById('phase-info');
+            phaseInfo.textContent = `[PHASE_${this.level.toString().padStart(2, '0')}_SUCCESS_CONFIRMED]`;
+
+            const overlay = document.getElementById('level-complete');
+            overlay.style.display = 'flex';
             this.gameState = 'WIN_SCREEN';
-            anime({ targets: '#level-complete', opacity: [0, 1], scale: [0.95, 1], duration: 800 });
+            
+            // REFINED INFOGRAPHIC AAR (v13.7)
+            anime.timeline()
+            .add({ 
+                targets: '#level-complete', 
+                opacity: [0, 1], 
+                duration: 500, 
+                easing: 'linear' 
+            })
+            .add({
+                targets: '#phase-info',
+                translateY: [10, 0],
+                opacity: [0, 1],
+                duration: 500
+            }, '-=200')
+            .add({ 
+                targets: '#level-complete .stat-panel', 
+                translateY: [20, 0], 
+                opacity: [0, 1], 
+                delay: anime.stagger(100), 
+                duration: 600, 
+                easing: 'easeOutCubic' 
+            }, '-=300')
+            .add({
+                targets: '#level-complete .stat, #level-complete .btn',
+                opacity: [0, 1],
+                duration: 500
+            }, '-=300');
         }, 1200);
     }
 
@@ -439,11 +475,49 @@ export class LuminaEngine {
         this.gameState = 'FAILING'; this.playSweep(false);
         document.getElementById('glitch-overlay').style.display = 'block';
         anime({ targets: '#game-container', translateX: [-20, 20, 0], duration: 250, loop: 4 });
+        
+        let totalProg = 0;
+        this.cores.forEach(c => totalProg += c.progress);
+        const integrity = Math.floor((totalProg / Math.max(1, this.cores.length)) * 100);
+
         setTimeout(() => {
             document.getElementById('glitch-overlay').style.display = 'none';
-            document.getElementById('fail-reason').textContent = reason;
-            document.getElementById('game-over').style.display = 'flex';
+            
+            // Session-Wide Metrics (v16.3)
+            document.getElementById('aar-lost').textContent = this.totalReflectors.toString().padStart(2, '0');
+            document.getElementById('aar-max-phase').textContent = (this.level - 1).toString().padStart(2, '0');
+            document.getElementById('aar-last-score').textContent = this.totalScore.toLocaleString();
+            document.getElementById('fail-reason').textContent = `[${reason.toUpperCase().replace(/\s+/g, '_')}]`;
+            
+            const failInfo = document.getElementById('fail-info');
+            failInfo.textContent = `PHASE_${this.level.toString().padStart(2, '0')}_SIGNAL_LOSS`;
+
+            const overlay = document.getElementById('game-over');
+            overlay.style.display = 'flex';
             this.gameState = 'FAIL_SCREEN';
+
+            anime.timeline()
+            .add({ targets: '#game-over', opacity: [0, 1], duration: 500 })
+            .add({
+                targets: '#fail-reason, #fail-info',
+                translateY: [10, 0],
+                opacity: [0, 1],
+                delay: anime.stagger(100),
+                duration: 500
+            }, '-=200')
+            .add({ 
+                targets: '#game-over .stat-panel', 
+                scaleX: [0, 1], 
+                opacity: [0, 1], 
+                delay: anime.stagger(150), 
+                duration: 600, 
+                easing: 'easeOutExpo' 
+            }, '-=300')
+            .add({
+                targets: '#game-over .stat, #game-over .btn',
+                opacity: [0, 1],
+                duration: 500
+            }, '-=300');
         }, 1000);
     }
 
@@ -465,6 +539,7 @@ export class LuminaEngine {
             newMirror.inDock = false;
             this.mirrors.push(newMirror);
             this.isDragging = newMirror;
+            this.totalReflectors++;
             if (this.clickSynth) this.clickSynth.triggerAttackRelease("16n");
             this.createShards(this.width / 2, this.height - 110, 8, COLORS.SOLAR, 6);
             return;

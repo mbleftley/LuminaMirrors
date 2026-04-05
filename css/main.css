@@ -191,8 +191,8 @@ body {
 
 .btn {
     background: transparent;
-    border: 1px solid #ff9d00;
-    color: #ff9d00;
+    border: 1px solid var(--gold);
+    color: var(--gold);
     padding: 24px 85px;
     cursor: pointer;
     font-family: var(--font-mono);
@@ -200,45 +200,26 @@ body {
     letter-spacing: 6px;
     transition: 0.4s;
     border-radius: 4px;
+    position: relative;
+    font-weight: 700;
 }
 
 .btn:hover {
-    background: #ff9d00;
+    background: var(--gold);
     color: #000;
-    box-shadow: 0 0 50px rgba(255, 157, 0, 0.5);
-    border-color: #ff9d00;
+    box-shadow: 0 0 30px var(--gold);
+    transform: translateY(-3px);
 }
 
 .btn-pulse {
-    animation: pulse-accent 3s infinite ease-in-out;
-    position: relative;
+    animation: pulseGlow 2s infinite;
 }
 
-@keyframes pulse-accent {
-    0% { box-shadow: 0 0 10px rgba(255, 157, 0, 0.1); }
-    50% { box-shadow: 0 0 40px rgba(255, 157, 0, 0.3); }
-    100% { box-shadow: 0 0 10px rgba(255, 157, 0, 0.1); }
+@keyframes pulseGlow {
+    0% { box-shadow: 0 0 5px var(--gold); }
+    50% { box-shadow: 0 0 20px var(--gold); }
+    100% { box-shadow: 0 0 5px var(--gold); }
 }
-
-.btn-pulse::before {
-    content: '[';
-    position: absolute;
-    left: 25px;
-    opacity: 0.8;
-    transition: 0.3s;
-    font-weight: 700;
-}
-.btn-pulse::after {
-    content: ']';
-    position: absolute;
-    right: 25px;
-    opacity: 0.8;
-    transition: 0.3s;
-    font-weight: 700;
-}
-
-.btn-pulse:hover::before { left: 10px; opacity: 1; }
-.btn-pulse:hover::after { right: 10px; opacity: 1; }
 
 #start-menu .title {
     color: var(--gold);
@@ -327,4 +308,49 @@ body {
 #game-over,
 #start-menu {
     display: none;
+}
+
+/* INFOGRAPHIC HUD (v13.0) */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    width: 800px;
+    max-width: 95vw;
+    margin: 45px 0;
+}
+
+.stat-panel {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 3px solid var(--accent);
+    padding: 18px 25px;
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 4px;
+    backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+    opacity: 0; /* v13.1 Prevent Flash */
+}
+
+.stat-panel:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.stat-panel .val {
+    font-size: 1.6rem;
+    margin-top: 10px;
+    color: #fff;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+.stat-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; width: 4px; height: 100%;
+    background: var(--accent);
+    opacity: 0.2;
 }
