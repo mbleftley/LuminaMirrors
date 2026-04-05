@@ -984,6 +984,9 @@
                     this.mirrors.push(newMirror);
                     this.isDragging = newMirror;
                     if (this.clickSynth) this.clickSynth.triggerAttackRelease("16n");
+                    
+                    // FORGE SPARKS (v8.1)
+                    this.createShards(this.width / 2, this.height - 110, 15, COLORS.SOLAR, 12);
                     return;
                 }
 
@@ -1004,6 +1007,12 @@
                     if (!this.isDragging.isMoved) { 
                         this.isDragging.angle += Math.PI / 4;
                         if (this.clickSynth) this.clickSynth.triggerAttackRelease("32n");
+                        
+                        // ROTATION SPARKS (v8.1) - Fly off the edges
+                        const mx = Math.cos(this.isDragging.angle) * this.isDragging.length / 2;
+                        const my = Math.sin(this.isDragging.angle) * this.isDragging.length / 2;
+                        this.createShards(this.isDragging.x + mx, this.isDragging.y + my, 5, COLORS.SOLAR, 10);
+                        this.createShards(this.isDragging.x - mx, this.isDragging.y - my, 5, COLORS.SOLAR, 10);
                     }
                     const distToCore = Math.hypot(this.isDragging.x - this.width / 2, this.isDragging.y - (this.height - 110));
                     if (distToCore < 80) {
