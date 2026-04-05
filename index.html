@@ -114,7 +114,7 @@
 
         #dock-hud {
             position: absolute;
-            bottom: 110px;
+            bottom: 125px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
@@ -123,6 +123,17 @@
             opacity: 0;
             transition: opacity 0.5s ease;
             pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent);
+            text-shadow: 0 0 10px rgba(255, 207, 51, 0.3);
+        }
+
+        #dock-hud .val {
+            font-size: 1.4rem;
+            color: #fff;
+            text-shadow: 0 0 15px #fff;
+            font-weight: 800;
         }
 
         /* OVERLAYS */
@@ -495,18 +506,43 @@
             }
             draw(frame) {
                 const glowColor = this.isHit ? this.hitColor : '#fff';
-                ctx.save(); 
-                ctx.shadowBlur = this.isHit ? (25 + Math.sin(frame / 5) * 10) : 12; 
-                ctx.shadowColor = glowColor; 
-                ctx.strokeStyle = this.isHit ? glowColor : COLORS.SOLAR; 
-                ctx.lineWidth = this.isHit ? 10 : 7;
-                
                 const mx = Math.cos(this.angle) * this.length / 2; 
                 const my = Math.sin(this.angle) * this.length / 2;
+
+                ctx.save();
+                // Outer Glow Pulse
+                ctx.shadowBlur = this.isHit ? (30 + Math.sin(frame / 5) * 15) : 15;
+                ctx.shadowColor = glowColor;
+                
+                // Hardware Frame (Chunky Base)
+                ctx.strokeStyle = '#222'; ctx.lineWidth = 12;
                 ctx.beginPath(); ctx.moveTo(this.x - mx, this.y - my); ctx.lineTo(this.x + mx, this.y + my); ctx.stroke();
                 
+                ctx.strokeStyle = '#444'; ctx.lineWidth = 8;
+                ctx.beginPath(); ctx.moveTo(this.x - mx, this.y - my); ctx.lineTo(this.x + mx, this.y + my); ctx.stroke();
+
+                // Energy Core
+                ctx.strokeStyle = this.isHit ? glowColor : COLORS.SOLAR; 
+                ctx.lineWidth = this.isHit ? 6 : 4;
+                ctx.beginPath(); ctx.moveTo(this.x - mx, this.y - my); ctx.lineTo(this.x + mx, this.y + my); ctx.stroke();
+                
+                // Inner Bright Wire
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.moveTo(this.x - mx, this.y - my); ctx.lineTo(this.x + mx, this.y + my); ctx.stroke();
+
+                // End Caps (Hardware Detail) - Polished Milled Aluminum Look
+                ctx.fillStyle = '#333'; ctx.strokeStyle = '#666'; ctx.lineWidth = 1;
+                [ -1, 1 ].forEach(side => {
+                    const cx = this.x + mx * side; const cy = this.y + my * side;
+                    ctx.save(); ctx.translate(cx, cy); ctx.rotate(this.angle);
+                    ctx.fillRect(-3, -7, 6, 14); ctx.strokeRect(-3, -7, 6, 14); 
+                    ctx.fillStyle = '#888'; ctx.fillRect(-1, -5, 2, 10); // Detail line
+                    ctx.restore();
+                });
+
                 if (this.isHit) {
-                    ctx.globalAlpha = 0.3; ctx.lineWidth = 20; ctx.stroke();
+                    ctx.globalAlpha = 0.2; ctx.lineWidth = 25; ctx.strokeStyle = glowColor;
+                    ctx.beginPath(); ctx.moveTo(this.x - mx, this.y - my); ctx.lineTo(this.x + mx, this.y + my); ctx.stroke();
                 }
                 
                 ctx.restore();
@@ -773,24 +809,53 @@
                 this.obstacles.forEach(o => o.draw(this.frame));
                 this.cores.forEach(c => c.draw(this.frame));
 
-                // Visual indicator for the dock area (Bottom Panel)
+                // Visual indicator for the dock area (High-Fidelity Console Overhaul)
                 ctx.save();
                 ctx.translate(this.width / 2, this.height - 65);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-                ctx.shadowBlur = 40; ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-                const dockW = Math.min(this.width - 100, (this.mirrors.length * 100) + 60);
-                ctx.beginPath(); ctx.roundRect(-dockW/2, -55, dockW, 110, 15); ctx.fill();
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'; ctx.lineWidth = 1;
-                ctx.stroke(); 
                 
-                // Draw Ghost Slots
-                ctx.setTransform(1, 0, 0, 1, 0, 0); 
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)'; ctx.lineWidth = 2;
-                ctx.setLineDash([5, 10]);
+                // Matte Glass Finish / Matte-Black Layer
+                const dockW = Math.min(this.width - 100, (this.mirrors.length * 100) + 60);
+                ctx.fillStyle = '#0a0a0a';
+                ctx.shadowBlur = 80; ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+                ctx.beginPath(); ctx.roundRect(-dockW/2, -60, dockW, 120, 15); ctx.fill();
+                
+                // Fine Technical Texture (Micro-Grid)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)'; ctx.lineWidth = 0.5;
+                for(let x = -dockW/2; x < dockW/2; x += 10) {
+                    ctx.beginPath(); ctx.moveTo(x, -60); ctx.lineTo(x, 60); ctx.stroke();
+                }
+                for(let y = -60; y < 60; y += 10) {
+                    ctx.beginPath(); ctx.moveTo(-dockW/2, y); ctx.lineTo(dockW/2, y); ctx.stroke();
+                }
+
+                // Glowing Edge Highlight (Top Wireframe)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(-dockW/2, -60); ctx.lineTo(dockW/2, -60); ctx.stroke();
+                
+                // Inset Bevel Detail
+                ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 4;
+                ctx.strokeRect(-dockW/2 + 2, -58, dockW - 4, 116);
+
+                // Draw Sockets & Contacts
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
                 this.dockSlots.forEach(slot => {
-                    ctx.beginPath(); ctx.moveTo(slot.x, slot.y - 40); ctx.lineTo(slot.x, slot.y + 40); ctx.stroke();
+                    // Recessed Socket Base (Shadow Depth)
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(slot.x - 20, slot.y + 30, 40, 12);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)'; ctx.lineWidth = 1;
+                    ctx.strokeRect(slot.x - 20, slot.y + 30, 40, 12);
+                    
+                    // Ghost Slot (Electrical Contact Light - Low Profile)
+                    const isOccupied = this.mirrors.some(m => m.inDock && m.x === slot.x);
+                    if (!isOccupied) {
+                        ctx.save();
+                        ctx.shadowBlur = 5; ctx.shadowColor = COLORS.SOLAR;
+                        ctx.strokeStyle = `rgba(255, 207, 51, ${0.05 + Math.sin(this.frame / 12) * 0.03})`;
+                        ctx.lineWidth = 1.5; ctx.setLineDash([4, 12]);
+                        ctx.beginPath(); ctx.moveTo(slot.x, slot.y - 40); ctx.lineTo(slot.x, slot.y + 40); ctx.stroke();
+                        ctx.restore();
+                    }
                 });
-                ctx.setLineDash([]);
                 ctx.restore();
 
                 if (this.gameState !== 'FAIL_SCREEN') {
