@@ -621,6 +621,7 @@
                 this.thrumSynth = null; this.clickSynth = null;
                 this.lastPingTime = 0;
                 this.lastPulseTime = 0;
+                this.lastSnapTime = 0; // v10.8 Stability Buffer
                 
                 this.resize();
                 window.addEventListener('resize', () => this.resize());
@@ -646,24 +647,24 @@
                 this.drone = new Tone.Oscillator(40, "sine").toDestination();
                 this.drone.volume.value = -55; this.drone.start();
 
-                // MAGNETIC PULSE ENGINE (v10.6 Goldilocks Calibration)
+                // MAGNETIC PULSE ENGINE (v10.7 Acoustic Harmony)
                 this.pulseSynth = new Tone.MetalSynth({
                     frequency: 200, envelope: { attack: 0.001, decay: 0.1, release: 0.1 },
                     harmonicity: 5.1, modulationIndex: 32, resonance: 1000, octaves: 1.5
                 }).connect(this.reverb);
-                this.pulseSynth.volume.value = -14; // GOLDILOCKS (v10.6)
+                this.pulseSynth.volume.value = -18; // ORIGINAL NAILD (v10.7)
 
                 // TACTILE FEEDBACK SYNTHS (v7.7 Hardware Weight)
                 this.thrumSynth = new Tone.MetalSynth({
                     frequency: 200, envelope: { attack: 0.001, decay: 0.1, release: 0.1 },
                     harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5
                 }).connect(this.reverb);
-                this.thrumSynth.volume.value = -14; // GOLDILOCKS (v10.6)
+                this.thrumSynth.volume.value = -16; // HARMONIZED (v10.7)
 
                 this.clickSynth = new Tone.NoiseSynth({
                     noise: { type: "white" }, envelope: { attack: 0.001, decay: 0.06, release: 0.06 }
                 }).connect(this.reverb);
-                this.clickSynth.volume.value = -16; // BALANCED (v10.6)
+                this.clickSynth.volume.value = -18; // HARMONIZED (v10.7)
             }
 
             playPing(freq = "C5") {
@@ -936,14 +937,15 @@
                         if (closestHit) {
                             emitter.beamSegments.push({ x: closestHit.x, y: closestHit.y });
                             if (closestHit.type === 'MIRROR') {
-                                // Universal Reflectors (v6.9): Mirrors adopt beam color
+                                // Tactile Beam Intercept (v10.9 Interlocked Scheduling)
+                                if (!closestHit.mirror.wasHit && !closestHit.mirror.isHit && this.thrumSynth) {
+                                    const now = Tone.now();
+                                    const triggerTime = Math.max(now + 0.05, this.lastSnapTime + 0.02);
+                                    this.thrumSynth.triggerAttackRelease("C3", "16n", triggerTime, 0.6);
+                                    this.lastSnapTime = triggerTime;
+                                }
                                 closestHit.mirror.isHit = true;
                                 closestHit.mirror.hitColor = emitter.color;
-                                
-                                // Tactile Beam Intercept (v10.3 Balanced Snap)
-                                if (!closestHit.mirror.wasHit && this.thrumSynth) {
-                                    this.thrumSynth.triggerAttackRelease("C3", "16n", undefined, 0.6);
-                                }
                                 
                                 this.uniqueMirrorsHit.add(closestHit.mirror.id);
                                 curX = closestHit.x; curY = closestHit.y;
