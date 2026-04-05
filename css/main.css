@@ -1,0 +1,330 @@
+:root {
+    --bg: #030303;
+    --text: #ffffff;
+    --accent: #00f2ff;
+    --gold: #ffcf33;
+    --danger: #ff3e3e;
+    --font-main: 'Outfit', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    touch-action: none;
+    user-select: none;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-main);
+    overflow: hidden;
+    height: 100dvh;
+}
+
+#game-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+/* HUD */
+.hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 25px;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0;
+    transition: 0.5s;
+}
+
+.hud-panel {
+    background: rgba(255, 255, 255, 0.02);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 5px 20px;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    backdrop-filter: blur(15px);
+}
+
+.val {
+    font-size: 1.5rem;
+    color: var(--gold);
+    font-weight: 700;
+    display: block;
+    font-family: var(--font-main);
+    margin-top: 4px;
+}
+
+#sync-container {
+    position: absolute;
+    top: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 320px;
+    text-align: center;
+}
+
+#sync-bars-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 15px;
+}
+
+.sync-bar-outer {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+}
+
+.sync-bar-inner {
+    height: 100%;
+    width: 0%;
+    transition: 0.15s linear;
+}
+
+#forge-hud {
+    position: absolute;
+    bottom: 30px; 
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent);
+    text-shadow: 0 0 10px rgba(255, 207, 51, 0.4);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+#forge-hud .val {
+    font-size: 1.2rem;
+    color: #fff;
+    text-shadow: 0 0 15px #fff;
+    font-weight: 800;
+    margin-top: 5px;
+}
+
+#forge-hint {
+    position: absolute;
+    bottom: 175px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    font-weight: 500;
+    opacity: 0;
+    transition: opacity 1s ease;
+    pointer-events: none;
+    text-shadow: none;
+}
+
+/* OVERLAYS */
+.vibe-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 50;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.01), rgba(0, 255, 0, 0.01), rgba(0, 255, 0, 0.01));
+    background-size: 100% 4px, 3px 100%;
+    opacity: 0.1;
+}
+
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(3, 3, 3, 0.96);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    z-index: 1000;
+    backdrop-filter: blur(35px);
+    text-align: center;
+}
+
+.title {
+    font-size: 5rem;
+    font-weight: 700;
+    letter-spacing: 25px;
+    color: var(--accent);
+    text-shadow: 0 0 35px var(--accent);
+    margin-bottom: 5px;
+}
+
+.stat {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    opacity: 0.6;
+    margin-bottom: 45px;
+    letter-spacing: 4px;
+    line-height: 2.8;
+}
+
+.btn {
+    background: transparent;
+    border: 1px solid #ff9d00;
+    color: #ff9d00;
+    padding: 24px 85px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    letter-spacing: 6px;
+    transition: 0.4s;
+    border-radius: 4px;
+}
+
+.btn:hover {
+    background: #ff9d00;
+    color: #000;
+    box-shadow: 0 0 50px rgba(255, 157, 0, 0.5);
+    border-color: #ff9d00;
+}
+
+.btn-pulse {
+    animation: pulse-accent 3s infinite ease-in-out;
+    position: relative;
+}
+
+@keyframes pulse-accent {
+    0% { box-shadow: 0 0 10px rgba(255, 157, 0, 0.1); }
+    50% { box-shadow: 0 0 40px rgba(255, 157, 0, 0.3); }
+    100% { box-shadow: 0 0 10px rgba(255, 157, 0, 0.1); }
+}
+
+.btn-pulse::before {
+    content: '[';
+    position: absolute;
+    left: 25px;
+    opacity: 0.8;
+    transition: 0.3s;
+    font-weight: 700;
+}
+.btn-pulse::after {
+    content: ']';
+    position: absolute;
+    right: 25px;
+    opacity: 0.8;
+    transition: 0.3s;
+    font-weight: 700;
+}
+
+.btn-pulse:hover::before { left: 10px; opacity: 1; }
+.btn-pulse:hover::after { right: 10px; opacity: 1; }
+
+#start-menu .title {
+    color: var(--gold);
+    text-shadow: 0 0 50px var(--gold);
+}
+
+#start-menu.active {
+    display: flex;
+}
+
+.btn-gold {
+    border-color: var(--gold) !important;
+    color: var(--gold) !important;
+    margin-top: 0;
+    text-decoration: none;
+    display: inline-block;
+    padding: 14px 40px;
+    font-size: 0.7rem;
+    letter-spacing: 4px;
+}
+
+.btn-gold:hover {
+    background: var(--gold) !important;
+    color: #000 !important;
+    box-shadow: 0 0 45px var(--gold);
+}
+
+/* SHINE EFFECT */
+.btn-shine {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-shine::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -160%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+        to right,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    transform: rotate(30deg);
+    transition: 0.7s;
+    pointer-events: none;
+}
+
+.btn-shine:hover::after {
+    left: 160%;
+}
+
+.dev-credit {
+    margin-top: 45px;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 4px;
+    opacity: 0.4;
+    text-transform: uppercase;
+}
+
+.dev-link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 8px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.dev-link:hover {
+    opacity: 1;
+    color: #fff;
+}
+
+.menu-divider {
+    width: 140px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.05);
+    margin: 60px auto 40px;
+}
+
+#level-complete,
+#game-over,
+#start-menu {
+    display: none;
+}
