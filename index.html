@@ -317,8 +317,13 @@
                     <!-- Dynamic bars inserted here -->
                 </div>
             </div>
-            <div class="hud-panel" style="text-align: right;">DECAY_TIMER<br><span class="val"
-                    id="timer-val">30.00s</span></div>
+            <div class="hud-panel" style="text-align: right;">ELAPSED_TIME<br><span class="val"
+                    id="timer-val">00.00s</span></div>
+        </div>
+
+        <!-- NEW SCORE HUD -->
+        <div id="score-hud" class="hud" style="top: auto; bottom: 0; padding: 15px 25px;">
+             <div class="hud-panel">TOTAL_RESONANCE<br><span class="val" id="total-score-val">000000</span></div>
         </div>
 
         <div id="start-menu" class="overlay active">
@@ -339,9 +344,16 @@
         </div>
 
         <div id="level-complete" class="overlay">
-            <div class="title">DECODED</div>
-            <div class="stat">SIGNAL_INTEGRITY: 100%<br>NEURAL_BRIDGE: SECURED</div>
-            <button class="btn" onclick="nextLevel()">NEXT SIGNAL</button>
+            <div class="title" style="font-size: 4rem; letter-spacing: 15px;">DECODED</div>
+            <div class="stat" id="level-stats">
+                DECODE_TIME: <span style="color: var(--accent);">0.00s</span><br>
+                REFLECTORS_ACTIVE: <span style="color: var(--accent);">0</span><br>
+                SIGNAL_SCORE: <span style="color: var(--accent);">+0</span>
+            </div>
+            <div class="stat" style="margin-top: -20px; font-size: 1rem; color: #fff;">
+                TOTAL_RESONANCE: <span id="complete-total-score">0</span>
+            </div>
+            <button class="btn btn-shine" onclick="nextLevel()">NEXT SIGNAL</button>
         </div>
 
         <div id="game-over" class="overlay">
@@ -455,7 +467,8 @@
         }
 
         class Mirror {
-            constructor(x, y, angle, length) {
+            constructor(id, x, y, angle, length) {
+                this.id = id;
                 this.x = x; this.y = y; this.angle = angle; this.length = length;
                 this.isMoved = false;
             }
@@ -478,14 +491,15 @@
             }
         }
 
-        // --- GAME ENGINE ---
         class LuminaEngine {
             constructor() {
-                this.level = 1; this.timeLeft = 30; this.frame = 0;
+                this.level = 1; this.timeInLevel = 0; this.frame = 0;
+                this.totalScore = 0; this.uniqueMirrorsHit = new Set();
                 this.gameState = 'MENU';
                 this.width = window.innerWidth; this.height = window.innerHeight;
                 this.emitters = []; this.cores = []; this.mirrors = []; this.obstacles = []; this.particles = [];
                 this.isDragging = null;
+                this.totalScoreDisplay = document.getElementById('total-score-val');
                 
                 // Audio
                 this.fmSynth = null; this.drone = null; this.reverb = null; this.lastPingTime = 0;
@@ -548,7 +562,8 @@
             }
 
             createLevel() {
-                this.timeLeft = 35; 
+                this.timeInLevel = 0;
+                this.uniqueMirrorsHit.clear();
                 this.cores.forEach(c => c.progress = 0);
                 document.getElementById('level-complete').style.display = 'none';
                 document.getElementById('game-over').style.display = 'none';
@@ -559,7 +574,6 @@
                 let emitterCount = 1;
                 if (this.level >= 8) emitterCount = 3;
                 else if (this.level >= 5) emitterCount = 2;
-
                 const spacing = this.height / (emitterCount + 1);
                 for (let i = 0; i < emitterCount; i++) {
                     const color = HARMONIC_PALETTE[i % HARMONIC_PALETTE.length];
@@ -567,6 +581,17 @@
                     
                     let coreY = 100 + Math.random() * (this.height - 200);
                     this.cores.push(new Core(this.width - 150, coreY, 65 - (emitterCount * 5), color));
+                }
+
+                const mCount = 4 + Math.floor(this.level / 2);
+                for (let i = 0; i < mCount; i++) {
+                    this.mirrors.push(new Mirror(
+                        i,
+                        200 + Math.random() * (this.width - 400),
+                        100 + Math.random() * (this.height - 200),
+                        (Math.floor(Math.random() * 8) * 45) * (Math.PI / 180),
+                        100
+                    ));
                 }
 
                 // Rebuild HUD bars
@@ -582,16 +607,6 @@
                     syncBarsWrapper.appendChild(outer);
                     core.hudElement = inner;
                 });
-
-                const mCount = 4 + Math.floor(this.level / 2);
-                for (let i = 0; i < mCount; i++) {
-                    this.mirrors.push(new Mirror(
-                        200 + Math.random() * (this.width - 400),
-                        100 + Math.random() * (this.height - 200),
-                        (Math.floor(Math.random() * 8) * 45) * (Math.PI / 180),
-                        100
-                    ));
-                }
 
                 const oCount = Math.floor(this.level / 2) + 1;
                 for (let i = 0; i < oCount; i++) {
@@ -632,16 +647,19 @@
                 });
 
                 if (allSaturated && this.cores.length > 0) this.triggerWin();
+
+                // Update Score HUD
+                if (this.totalScoreDisplay) this.totalScoreDisplay.textContent = this.totalScore.toString().padStart(6, '0');
             }
 
             updateTimer() {
-                this.timeLeft -= 1 / 60;
-                timerDisplay.textContent = Math.max(0, this.timeLeft).toFixed(2) + "s";
-                if (this.timeLeft <= 0) this.triggerGameOver("THERMAL DECAY COMPLETE");
+                this.timeInLevel += 1 / 60;
+                timerDisplay.textContent = this.timeInLevel.toFixed(2) + "s";
             }
 
             updateOptics() {
                 this.cores.forEach(c => c.isHit = false);
+                this.uniqueMirrorsHit.clear();
 
                 this.emitters.forEach(emitter => {
                     emitter.beamSegments = [{ x: emitter.x, y: emitter.y }];
@@ -690,6 +708,7 @@
                         if (closestHit) {
                             emitter.beamSegments.push({ x: closestHit.x, y: closestHit.y });
                             if (closestHit.type === 'MIRROR') {
+                                this.uniqueMirrorsHit.add(closestHit.mirror.id);
                                 curX = closestHit.x; curY = closestHit.y;
                                 curAngle = 2 * closestHit.mirror.angle - curAngle;
                                 if (this.frame % 8 === 0) this.createShards(curX, curY, 1, COLORS.TEXT, 5);
@@ -732,8 +751,22 @@
             triggerWin() {
                 if (this.gameState !== 'PLAYING') return;
                 this.gameState = 'WINNING'; this.playSweep(true);
+                
+                const mirrorCount = this.uniqueMirrorsHit.size;
+                const timeBonus = Math.max(0, Math.floor(10000 - (this.timeInLevel * 100)));
+                const reflectorBonus = mirrorCount * 500;
+                const levelScore = reflectorBonus + timeBonus;
+                this.totalScore += levelScore;
+
                 this.cores.forEach(c => this.createShards(c.x, c.y, 40, c.color, 25, 0.02));
+                
                 setTimeout(() => {
+                    document.getElementById('level-stats').innerHTML = `
+                        DECODE_TIME: <span style="color: var(--accent);">${this.timeInLevel.toFixed(2)}s</span><br>
+                        REFLECTORS_ACTIVE: <span style="color: var(--accent);">${mirrorCount}</span><br>
+                        SIGNAL_SCORE: <span style="color: var(--accent);">+${levelScore}</span>
+                    `;
+                    document.getElementById('complete-total-score').textContent = this.totalScore;
                     document.getElementById('level-complete').style.display = 'flex';
                     this.gameState = 'WIN_SCREEN';
                     anime({ targets: '#level-complete', opacity: [0, 1], scale: [0.95, 1], duration: 800 });
