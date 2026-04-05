@@ -175,6 +175,7 @@ body {
     font-size: 5rem;
     font-weight: 700;
     letter-spacing: 25px;
+    text-indent: 25px; /* Pull back into true center */
     color: var(--accent);
     text-shadow: 0 0 35px var(--accent);
     margin-bottom: 5px;
@@ -182,11 +183,34 @@ body {
 
 .stat {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
-    opacity: 0.6;
-    margin-bottom: 45px;
+    text-align: center;
+    margin-bottom: 60px;
+    line-height: 2.5;
+}
+
+.procedural-title {
+    color: #fff;
+    opacity: 0.9;
+    font-size: 0.62rem;
+    letter-spacing: 6px;
+    text-indent: 6px;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+    font-weight: 700;
+}
+
+.instruction-text {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.55rem;
     letter-spacing: 4px;
-    line-height: 2.8;
+    text-indent: 4px;
+    text-transform: uppercase;
+}
+
+.sub-divider {
+    width: 80px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 60px auto 35px;
 }
 
 .btn {
@@ -198,6 +222,7 @@ body {
     font-family: var(--font-mono);
     font-size: 0.9rem;
     letter-spacing: 6px;
+    text-indent: 6px;
     transition: 0.4s;
     border-radius: 4px;
     position: relative;
@@ -276,10 +301,11 @@ body {
 }
 
 .dev-credit {
-    margin-top: 45px;
+    margin-top: 20px;
     font-family: var(--font-mono);
     font-size: 0.65rem;
     letter-spacing: 4px;
+    text-indent: 4px;
     opacity: 0.4;
     text-transform: uppercase;
 }
