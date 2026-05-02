@@ -108,8 +108,20 @@ export class LuminaEngine {
     }
 
     resize() {
-        this.width = this.canvas.width = window.innerWidth;
-        this.height = this.canvas.height = window.innerHeight;
+        const MIN_LOGICAL_WIDTH = 600;
+        
+        if (window.innerWidth < MIN_LOGICAL_WIDTH) {
+            this.uiScale = MIN_LOGICAL_WIDTH / window.innerWidth;
+            this.logicalWidth = MIN_LOGICAL_WIDTH;
+            this.logicalHeight = window.innerHeight * this.uiScale;
+        } else {
+            this.uiScale = 1;
+            this.logicalWidth = window.innerWidth;
+            this.logicalHeight = window.innerHeight;
+        }
+
+        this.width = this.canvas.width = this.logicalWidth;
+        this.height = this.canvas.height = this.logicalHeight;
     }
 
     startGame() {
@@ -163,7 +175,7 @@ export class LuminaEngine {
         this.levelNumDisplay.textContent = this.level;
         this.shards = []; this.mirrors = []; this.obstacles = []; this.emitters = []; this.cores = [];
 
-        const SAFE_ZONE_Y = this.height - 180;
+        const SAFE_ZONE_Y = this.height - 180 * (this.uiScale || 1);
         const emitterCount = this.level >= 11 ? 3 : (this.level >= 6 ? 2 : 1);
         const spacing = SAFE_ZONE_Y / (emitterCount + 1);
 
@@ -416,7 +428,7 @@ export class LuminaEngine {
         const presets = [Math.PI/4, Math.PI * 3/4];
         const spacing = Math.min(120, this.width / 3);
         const startX = (this.width / 2) - (spacing / 2);
-        const sy = this.height - 65;
+        const sy = this.height - 65 * (this.uiScale || 1);
         
         presets.forEach((angle, i) => {
             const tempMirror = new Mirror(999 + i, startX + (i * spacing), sy, angle, 80);
@@ -624,10 +636,14 @@ export class LuminaEngine {
     onPointerStart(e) {
         if (this.gameState !== 'PLAYING') return;
         const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
         
-        const sy = this.height - 65;
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+        
+        const sy = this.height - 65 * (this.uiScale || 1);
         const presets = [Math.PI/4, Math.PI * 3/4];
         const spacing = Math.min(120, this.width / 3);
         const startX = (this.width / 2) - (spacing / 2);
@@ -661,8 +677,10 @@ export class LuminaEngine {
     onPointerMove(e) {
         if (!this.isDragging || this.gameState !== 'PLAYING') return;
         const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
         if (Math.hypot(x - this.dragStartX, y - this.dragStartY) > 8) {
             this.isDragging.isMoved = true;
             this.isDragging.x = x; 
@@ -677,7 +695,7 @@ export class LuminaEngine {
             const dockRight = (this.width / 2) + spacing;
             
             // Delete mirror if dropped directly back into the central dock area
-            if (this.isDragging.y > this.height - 120 && this.isDragging.x > dockLeft && this.isDragging.x < dockRight) {
+            if (this.isDragging.y > this.height - 120 * (this.uiScale || 1) && this.isDragging.x > dockLeft && this.isDragging.x < dockRight) {
                 this.mirrors = this.mirrors.filter(m => m !== this.isDragging);
                 if (this.clickSynth) this.clickSynth.triggerAttackRelease("16n");
                 this.createShards(this.isDragging.x, this.isDragging.y, 10, COLORS.DANGER, 5);
