@@ -31,12 +31,10 @@ export class LuminaEngine {
         
         this.resize();
         window.addEventListener('resize', () => this.resize());
-        window.addEventListener('mousedown', (e) => this.onPointerStart(e));
-        window.addEventListener('mousemove', (e) => this.onPointerMove(e));
-        window.addEventListener('mouseup', (e) => this.onPointerEnd(e));
-        window.addEventListener('touchstart', (e) => this.onPointerStart(e));
-        window.addEventListener('touchmove', (e) => this.onPointerMove(e));
-        window.addEventListener('touchend', (e) => this.onPointerEnd(e));
+        window.addEventListener('pointerdown', (e) => this.onPointerStart(e));
+        window.addEventListener('pointermove', (e) => this.onPointerMove(e));
+        window.addEventListener('pointerup', (e) => this.onPointerEnd(e));
+        window.addEventListener('pointercancel', (e) => this.onPointerEnd(e));
         
         this.loop();
     }
@@ -411,12 +409,19 @@ export class LuminaEngine {
         this.cores.forEach(c => c.draw(this.ctx, this.frame));
 
         this.ctx.save();
-        const sx = this.width / 2; const sy = this.height - 110;
         const sPulse = 1 + Math.sin(this.frame / 10) * 0.2;
         this.ctx.globalAlpha = 0.3 * sPulse;
         this.ctx.shadowBlur = 40 * sPulse; this.ctx.shadowColor = COLORS.SOLAR;
-        const tempMirror = new Mirror(999, sx, sy, 0, 100);
-        tempMirror.draw(this.ctx, this.frame);
+        
+        const presets = [Math.PI/4, Math.PI * 3/4];
+        const spacing = Math.min(120, this.width / 3);
+        const startX = (this.width / 2) - (spacing / 2);
+        const sy = this.height - 65;
+        
+        presets.forEach((angle, i) => {
+            const tempMirror = new Mirror(999 + i, startX + (i * spacing), sy, angle, 80);
+            tempMirror.draw(this.ctx, this.frame);
+        });
         this.ctx.restore();
 
         if (this.gameState !== 'FAIL_SCREEN') {
@@ -619,47 +624,63 @@ export class LuminaEngine {
     onPointerStart(e) {
         if (this.gameState !== 'PLAYING') return;
         const rect = this.canvas.getBoundingClientRect();
-        const x = (e.clientX || (e.touches ? e.touches[0].clientX : 0)) - rect.left;
-        const y = (e.clientY || (e.touches ? e.touches[0].clientY : 0)) - rect.top;
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
         
-        const distToCore = Math.hypot(x - this.width / 2, y - (this.height - 110));
-        if (distToCore < 60) {
-            const newMirror = new Mirror(Date.now(), this.width / 2, this.height - 110, 0, 100);
-            newMirror.inDock = false;
-            this.mirrors.push(newMirror);
-            this.isDragging = newMirror;
-            this.totalReflectors++;
-            if (this.clickSynth) this.clickSynth.triggerAttackRelease("16n");
-            this.createShards(this.width / 2, this.height - 110, 8, COLORS.SOLAR, 6);
-            return;
+        const sy = this.height - 65;
+        const presets = [Math.PI/4, Math.PI * 3/4];
+        const spacing = Math.min(120, this.width / 3);
+        const startX = (this.width / 2) - (spacing / 2);
+
+        for (let i = 0; i < presets.length; i++) {
+            const px = startX + (i * spacing);
+            if (Math.hypot(x - px, y - sy) < 45) {
+                const newMirror = new Mirror(Date.now(), px, sy, presets[i], 100);
+                newMirror.inDock = false;
+                this.mirrors.push(newMirror);
+                this.isDragging = newMirror;
+                this.totalReflectors++;
+                if (this.clickSynth) this.clickSynth.triggerAttackRelease("16n");
+                this.createShards(px, sy, 8, COLORS.SOLAR, 6);
+                
+                this.isDragging.isMoved = false;
+                this.dragStartX = x;
+                this.dragStartY = y;
+                return;
+            }
         }
 
         this.isDragging = this.mirrors.find(m => Math.hypot(m.x - x, m.y - y) < 60);
-        if (this.isDragging) this.isDragging.isMoved = false;
+        if (this.isDragging) {
+            this.isDragging.isMoved = false;
+            this.dragStartX = x;
+            this.dragStartY = y;
+        }
     }
 
     onPointerMove(e) {
         if (!this.isDragging || this.gameState !== 'PLAYING') return;
         const rect = this.canvas.getBoundingClientRect();
-        const x = (e.clientX || (e.touches ? e.touches[0].clientX : 0)) - rect.left;
-        const y = (e.clientY || (e.touches ? e.touches[0].clientY : 0)) - rect.top;
-        this.isDragging.x = x; this.isDragging.y = y; this.isDragging.isMoved = true;
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        if (Math.hypot(x - this.dragStartX, y - this.dragStartY) > 8) {
+            this.isDragging.isMoved = true;
+            this.isDragging.x = x; 
+            this.isDragging.y = y; 
+        }
     }
 
     onPointerEnd(e) {
         if (this.isDragging) {
-            if (!this.isDragging.isMoved) { 
-                this.isDragging.angle += Math.PI / 4;
-                if (this.clickSynth) this.clickSynth.triggerAttackRelease("32n");
-                const mx = Math.cos(this.isDragging.angle) * this.isDragging.length / 2;
-                const my = Math.sin(this.isDragging.angle) * this.isDragging.length / 2;
-                this.createShards(this.isDragging.x + mx, this.isDragging.y + my, 3, COLORS.SOLAR, 5);
-                this.createShards(this.isDragging.x - mx, this.isDragging.y - my, 3, COLORS.SOLAR, 5);
-            }
-            const distToCore = Math.hypot(this.isDragging.x - this.width / 2, this.isDragging.y - (this.height - 110));
-            if (distToCore < 80) {
+            const spacing = Math.min(120, this.width / 3);
+            const dockLeft = (this.width / 2) - spacing;
+            const dockRight = (this.width / 2) + spacing;
+            
+            // Delete mirror if dropped directly back into the central dock area
+            if (this.isDragging.y > this.height - 120 && this.isDragging.x > dockLeft && this.isDragging.x < dockRight) {
                 this.mirrors = this.mirrors.filter(m => m !== this.isDragging);
                 if (this.clickSynth) this.clickSynth.triggerAttackRelease("16n");
+                this.createShards(this.isDragging.x, this.isDragging.y, 10, COLORS.DANGER, 5);
             }
             this.isDragging = null;
         }

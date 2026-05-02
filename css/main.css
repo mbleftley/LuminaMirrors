@@ -101,7 +101,7 @@ body {
 
 #forge-hud {
     position: absolute;
-    bottom: 30px; 
+    bottom: 130px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -128,7 +128,7 @@ body {
 
 #forge-hint {
     position: absolute;
-    bottom: 175px;
+    bottom: 185px;
     left: 50%;
     transform: translateX(-50%);
     color: rgba(255, 255, 255, 0.4);
@@ -379,4 +379,64 @@ body {
     top: 0; left: 0; width: 4px; height: 100%;
     background: var(--accent);
     opacity: 0.2;
+}
+
+/* MOBILE RESPONSIVE TWEAKS */
+@media (max-width: 768px) {
+    .title {
+        font-size: 3rem;
+        letter-spacing: 12px;
+        text-indent: 12px;
+    }
+    
+    .btn {
+        padding: 18px 40px;
+        font-size: 0.75rem;
+    }
+    
+    .instruction-text {
+        font-size: 0.45rem;
+        letter-spacing: 2px;
+        text-indent: 2px;
+    }
+    
+    .procedural-title {
+        font-size: 0.5rem;
+        letter-spacing: 4px;
+        text-indent: 4px;
+    }
+    
+    .stat-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin: 25px 0;
+    }
+    
+    .hud {
+        padding: 15px;
+    }
+    
+    .hud-panel {
+        font-size: 0.5rem;
+        padding: 5px 10px;
+        letter-spacing: 2px;
+    }
+    
+    .val {
+        font-size: 1.1rem;
+    }
+    
+    #forge-hud {
+        bottom: 110px;
+        font-size: 0.55rem;
+    }
+    
+    #forge-hud .val {
+        font-size: 1rem;
+    }
+    
+    #forge-hint {
+        bottom: 160px;
+        font-size: 0.65rem;
+    }
 }
