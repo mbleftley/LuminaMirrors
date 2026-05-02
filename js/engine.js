@@ -108,7 +108,7 @@ export class LuminaEngine {
     }
 
     resize() {
-        const MIN_LOGICAL_WIDTH = 600;
+        const MIN_LOGICAL_WIDTH = 850;
         
         if (window.innerWidth < MIN_LOGICAL_WIDTH) {
             this.uiScale = MIN_LOGICAL_WIDTH / window.innerWidth;
